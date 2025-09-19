@@ -1,0 +1,22 @@
+# [EditorConfig](https://editorconfig.org)
+
+# This is the top-most EditorConfig file
+root = true
+
+# General rules:
+# - Unix-style newlines
+# - Newline ending every file
+# - UTF-8 charset
+# - Space indentation
+# - 2 spaces per indentation
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+indent_style = space
+indent_size = 2
+
+# Python rules:
+# - 4 spaces per indentation
+[*.py]
+indent_size = 4
