@@ -111,6 +111,10 @@ async def vehicles_id_patch(id: int):
         "engine_type": "DIESEL"
     }
 
+@app.delete("/vehicles/{id}")
+async def vehicles_id_delete(id: int):
+    return {"message": "Vehicle Deleted"}
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
     message = {"message": "Work In Progress"}
