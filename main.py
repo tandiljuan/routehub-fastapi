@@ -33,6 +33,19 @@ async def vehicles_get(request: Request):
                 "engine_type": "DIESEL"
             }
         ]
+    elif 'list-1.1' == example:
+        return [
+            {
+                "id": 1,
+                "name": "pickup-update",
+                "volume": 1230000,
+                "volume_unit": "CUBIC_CENTIMETER",
+                "consumption": 10,
+                "consumption_unit": "LITERS_PER_100KM",
+                "category_type": "PICKUP",
+                "engine_type": "DIESEL"
+            }
+        ]
 
     message = {"message": "Work In Progress"}
     return JSONResponse(content=message, status_code=503)
