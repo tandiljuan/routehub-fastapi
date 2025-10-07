@@ -50,6 +50,19 @@ async def vehicles_post():
         "engine_type": "DIESEL"
     }
 
+@app.get("/vehicles/{id}")
+async def vehicles_id_get(id: int):
+    return {
+        "id": 1,
+        "name": "pickup",
+        "volume": 1230000,
+        "volume_unit": "CUBIC_CENTIMETER",
+        "consumption": 12,
+        "consumption_unit": "LITERS_PER_100KM",
+        "category_type": "PICKUP",
+        "engine_type": "DIESEL"
+    }
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
     message = {"message": "Work In Progress"}
