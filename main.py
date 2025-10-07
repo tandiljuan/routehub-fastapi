@@ -63,6 +63,19 @@ async def vehicles_id_get(id: int):
         "engine_type": "DIESEL"
     }
 
+@app.patch("/vehicles/{id}")
+async def vehicles_id_patch(id: int):
+    return {
+        "id": 1,
+        "name": "pickup-update",
+        "volume": 1230000,
+        "volume_unit": "CUBIC_CENTIMETER",
+        "consumption": 10,
+        "consumption_unit": "LITERS_PER_100KM",
+        "category_type": "PICKUP",
+        "engine_type": "DIESEL"
+    }
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
     message = {"message": "Work In Progress"}
