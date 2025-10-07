@@ -8,6 +8,10 @@ app = FastAPI(
     openapi_url=None # Disables the OpenAPI JSON schema
 )
 
+@app.get("/vehicles")
+async def vehicles_get():
+    return []
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
     message = {"message": "Work In Progress"}
