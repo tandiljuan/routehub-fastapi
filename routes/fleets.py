@@ -1,10 +1,36 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+import re
 
 router = APIRouter(prefix="/fleets")
 
 @router.get("")
-async def fleets_get():
-    return []
+async def fleets_get(request: Request):
+    example = ''
+
+    if 'prefer' in request.headers:
+        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
+        if match:
+            example = match.group(1)
+
+    if 'empty' == example:
+        return []
+    elif 'list-1.0' == example:
+        return [
+            {
+                "id": 1,
+                "name": "my-fleet",
+                "vehicles": [
+                    {
+                        "vehicle_id": 1,
+                        "quantity": 2
+                    }
+                ]
+            }
+        ]
+
+    message = {"message": "Work In Progress"}
+    return JSONResponse(content=message, status_code=503)
 
 @router.post("")
 async def fleets_post():
