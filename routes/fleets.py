@@ -44,3 +44,16 @@ async def fleets_post():
             }
         ]
     }
+
+@router.get("/{id}")
+async def fleets_id_get(id: int):
+    return {
+        "id": 1,
+        "name": "my-fleet",
+        "vehicles": [
+            {
+                "vehicle_id": 1,
+                "quantity": 2
+            }
+        ]
+    }
