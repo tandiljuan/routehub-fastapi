@@ -105,3 +105,7 @@ async def fleets_id_patch(id: int):
             }
         ]
     }
+
+@router.delete("/{id}")
+async def fleets_id_delete(id: int):
+    return {"message": "Fleet Deleted"}
