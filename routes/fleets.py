@@ -28,6 +28,19 @@ async def fleets_get(request: Request):
                 ]
             }
         ]
+    elif 'list-1.1' == example:
+        return [
+            {
+                "id": 1,
+                "name": "my-fleet-update",
+                "vehicles": [
+                    {
+                        "vehicle_id": 2,
+                        "quantity": 3
+                    }
+                ]
+            }
+        ]
 
     message = {"message": "Work In Progress"}
     return JSONResponse(content=message, status_code=503)
