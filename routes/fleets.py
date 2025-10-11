@@ -57,3 +57,16 @@ async def fleets_id_get(id: int):
             }
         ]
     }
+
+@router.patch("/{id}")
+async def fleets_id_patch(id: int):
+    return {
+        "id": 1,
+        "name": "my-fleet-update",
+        "vehicles": [
+            {
+                "vehicle_id": 2,
+                "quantity": 3
+            }
+        ]
+    }
