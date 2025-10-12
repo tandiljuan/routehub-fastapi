@@ -174,3 +174,7 @@ async def drivers_id_patch(id: int):
             }
         ]
     }
+
+@router.delete("/{id}")
+async def drivers_id_delete(id: int):
+    return {"message": "Fleet Deleted"}
