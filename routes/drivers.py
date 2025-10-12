@@ -95,29 +95,60 @@ async def drivers_post():
     }
 
 @router.get("/{id}")
-async def drivers_id_get(id: int):
-    return {
-        "id": 1,
-        "first_name": "John",
-        "last_name": "Doe",
-        "work_schedules": [
-            "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-        ],
-        "start_point": "37.7749,-122.4194",
-        "work_areas": [
-            [
-                "37.7749,-122.4194",
-                "37.7749,-122.4195",
-                "37.7750,-122.4194"
+async def drivers_id_get(id: int, request: Request):
+    example = ''
+
+    if 'prefer' in request.headers:
+        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
+        if match:
+            example = match.group(1)
+
+    if 'driver-1.0' == example:
+        return {
+            "id": 1,
+            "first_name": "John",
+            "last_name": "Doe",
+            "work_schedules": [
+                "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
+            ],
+            "start_point": "37.7749,-122.4194",
+            "work_areas": [
+                [
+                    "37.7749,-122.4194",
+                    "37.7749,-122.4195",
+                    "37.7750,-122.4194"
+                ]
+            ],
+            "vehicles": [
+                {
+                    "vehicle_id": 1,
+                    "quantity": 2
+                }
             ]
-        ],
-        "vehicles": [
-            {
-                "vehicle_id": 1,
-                "quantity": 2
-            }
-        ]
-    }
+        }
+    elif 'driver-1.1' == example:
+        return {
+            "id": 1,
+            "first_name": "Jane",
+            "last_name": "Smith",
+            "work_schedules": [
+                "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
+            ],
+            "start_point": "37.7749,-122.4194",
+            "work_areas": [
+                [
+                    "37.7749,-122.4194",
+                    "37.7749,-122.4195",
+                    "37.7750,-122.4194"
+                ]
+            ],
+            "vehicles": [
+                {
+                    "vehicle_id": 1,
+                    "quantity": 2
+                }
+            ]
+        }
 
 @router.patch("/{id}")
 async def drivers_id_patch(id: int):
