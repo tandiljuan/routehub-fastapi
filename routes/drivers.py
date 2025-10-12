@@ -93,3 +93,28 @@ async def drivers_id_get(id: int):
             }
         ]
     }
+
+@router.patch("/{id}")
+async def drivers_id_patch(id: int):
+    return {
+        "id": 1,
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "work_schedules": [
+            "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
+        ],
+        "start_point": "37.7749,-122.4194",
+        "work_areas": [
+            [
+                "37.7749,-122.4194",
+                "37.7749,-122.4195",
+                "37.7750,-122.4194"
+            ]
+        ],
+        "vehicles": [
+            {
+                "vehicle_id": 1,
+                "quantity": 2
+            }
+        ]
+    }
