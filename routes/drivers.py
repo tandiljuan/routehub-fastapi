@@ -40,6 +40,31 @@ async def drivers_get(request: Request):
                 ]
             }
         ]
+    elif 'list-1.1' == example:
+        return [
+            {
+                "id": 1,
+                "first_name": "Jane",
+                "last_name": "Smith",
+                "work_schedules": [
+                    "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
+                ],
+                "start_point": "37.7749,-122.4194",
+                "work_areas": [
+                    [
+                        "37.7749,-122.4194",
+                        "37.7749,-122.4195",
+                        "37.7750,-122.4194"
+                    ]
+                ],
+                "vehicles": [
+                    {
+                        "vehicle_id": 1,
+                        "quantity": 2
+                    }
+                ]
+            }
+        ]
 
     message = {"message": "Work In Progress"}
     return JSONResponse(content=message, status_code=503)
