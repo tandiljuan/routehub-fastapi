@@ -36,3 +36,12 @@ async def milestones_post():
         "location": "37.7749,-122.4194",
         "milestone_category": "DEPOT"
     }
+
+@router.get("/{id}")
+async def milestones_id_get(id: int):
+    return {
+        "id": 1,
+        "name": "Main Depot",
+        "location": "37.7749,-122.4194",
+        "milestone_category": "DEPOT"
+    }
