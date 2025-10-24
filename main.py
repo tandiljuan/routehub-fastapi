@@ -5,6 +5,7 @@ from routes import vehicles
 from routes import fleets
 from routes import drivers
 from routes import milestones
+from routes import deliveries
 
 app = FastAPI(
     docs_url=None,   # Disables Swagger UI
@@ -16,6 +17,7 @@ app.include_router(vehicles.router)
 app.include_router(fleets.router)
 app.include_router(drivers.router)
 app.include_router(milestones.router)
+app.include_router(deliveries.router)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
