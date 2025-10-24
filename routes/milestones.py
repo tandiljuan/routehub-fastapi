@@ -24,6 +24,15 @@ async def milestones_get(request: Request):
                 "milestone_category": "DEPOT"
             }
         ]
+    elif 'list-1.1' == example:
+        return [
+            {
+                "id": 1,
+                "name": "Main Distribution Point",
+                "location": "37.7749,-122.4194",
+                "milestone_category": "DISTRIBUTION_CENTER"
+            }
+        ]
 
     message = {"message": "Work In Progress"}
     return JSONResponse(content=message, status_code=503)
