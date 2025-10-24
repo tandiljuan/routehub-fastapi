@@ -33,6 +33,24 @@ async def deliveries_get(request: Request):
                 "weight_unit": "GRAMS"
             }
         ]
+    elif 'list-1.1' == example:
+        return [
+            {
+                "id": 1,
+                "delivery_method": "DELIVERY",
+                "milestone_id": 1,
+                "destination": "37.7749,-122.4194",
+                "schedule": ["DTSTART:20240704T120000Z"],
+                "width": 15,
+                "height": 25,
+                "depth": 35,
+                "length_unit": "CENTIMETER",
+                "volume": 6500,
+                "volume_unit": "CUBIC_CENTIMETER",
+                "weight": 1500,
+                "weight_unit": "GRAMS"
+            }
+        ]
 
     message = {"message": "Work In Progress"}
     return JSONResponse(content=message, status_code=503)
