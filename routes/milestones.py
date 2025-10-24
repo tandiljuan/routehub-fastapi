@@ -48,12 +48,18 @@ async def milestones_post():
 
 @router.get("/{id}")
 async def milestones_id_get(id: int, request: Request):
+    key = ''
     example = ''
 
     if 'prefer' in request.headers:
-        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
+        match = re.match(r'(\w+)=([\w\.-]+)', request.headers.get("Prefer"))
         if match:
-            example = match.group(1)
+            key = match.group(1)
+            example = match.group(2)
+
+    if 'code' == key:
+        message = {"message": "..."}
+        return JSONResponse(content=message, status_code=int(example))
 
     if 'milestone-1.0' == example:
         return {
