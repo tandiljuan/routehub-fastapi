@@ -47,13 +47,31 @@ async def milestones_post():
     }
 
 @router.get("/{id}")
-async def milestones_id_get(id: int):
-    return {
-        "id": 1,
-        "name": "Main Depot",
-        "location": "37.7749,-122.4194",
-        "milestone_category": "DEPOT"
-    }
+async def milestones_id_get(id: int, request: Request):
+    example = ''
+
+    if 'prefer' in request.headers:
+        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
+        if match:
+            example = match.group(1)
+
+    if 'milestone-1.0' == example:
+        return {
+            "id": 1,
+            "name": "Main Depot",
+            "location": "37.7749,-122.4194",
+            "milestone_category": "DEPOT"
+        }
+    elif 'milestone-1.1' == example:
+        return {
+            "id": 1,
+            "name": "Main Distribution Point",
+            "location": "37.7749,-122.4194",
+            "milestone_category": "DISTRIBUTION_CENTER"
+        }
+
+    message = {"message": "Work In Progress"}
+    return JSONResponse(content=message, status_code=503)
 
 @router.patch("/{id}")
 async def milestones_id_patch(id: int):
