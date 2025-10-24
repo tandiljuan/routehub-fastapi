@@ -72,3 +72,21 @@ async def deliveries_id_get(id: int):
         "weight": 1000,
         "weight_unit": "GRAMS"
     }
+
+@router.patch("/{id}")
+async def deliveries_id_patch(id: int):
+    return {
+        "id": 1,
+        "delivery_method": "DELIVERY",
+        "milestone_id": 1,
+        "destination": "37.7749,-122.4194",
+        "schedule": ["DTSTART:20240704T120000Z"],
+        "width": 15,
+        "height": 25,
+        "depth": 35,
+        "length_unit": "CENTIMETER",
+        "volume": 6500,
+        "volume_unit": "CUBIC_CENTIMETER",
+        "weight": 1500,
+        "weight_unit": "GRAMS"
+    }
