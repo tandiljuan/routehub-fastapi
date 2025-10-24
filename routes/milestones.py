@@ -81,3 +81,7 @@ async def milestones_id_patch(id: int):
         "location": "37.7749,-122.4194",
         "milestone_category": "DISTRIBUTION_CENTER"
     }
+
+@router.delete("/{id}")
+async def milestones_id_delete(id: int):
+    return {"message": "Milestone Deleted"}
