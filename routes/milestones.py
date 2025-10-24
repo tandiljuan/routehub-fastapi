@@ -45,3 +45,12 @@ async def milestones_id_get(id: int):
         "location": "37.7749,-122.4194",
         "milestone_category": "DEPOT"
     }
+
+@router.patch("/{id}")
+async def milestones_id_patch(id: int):
+    return {
+        "id": 1,
+        "name": "Main Distribution Point",
+        "location": "37.7749,-122.4194",
+        "milestone_category": "DISTRIBUTION_CENTER"
+    }
