@@ -135,3 +135,7 @@ async def deliveries_id_patch(id: int):
         "weight": 1500,
         "weight_unit": "GRAMS"
     }
+
+@router.delete("/{id}")
+async def deliveries_id_delete(id: int):
+    return {"message": "Fleet Deleted"}
