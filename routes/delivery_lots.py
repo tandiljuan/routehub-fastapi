@@ -26,6 +26,17 @@ async def delivery_lots_get(request: Request):
                 "state": "UNPROCESSED"
             }
         ]
+    elif 'list-1.1' == example:
+        return [
+            {
+                "id": 1,
+                "milestone_id": 1,
+                "deliveries": [1,2],
+                "fleet_id": 1,
+                "drivers": [1],
+                "state": "UNPROCESSED"
+            }
+        ]
 
     message = {"message": "Work In Progress"}
     return JSONResponse(content=message, status_code=503)
