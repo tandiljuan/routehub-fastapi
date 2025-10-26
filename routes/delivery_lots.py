@@ -94,6 +94,10 @@ async def delivery_lots_id_patch(id: int):
         "state": "UNPROCESSED"
     }
 
+@router.delete("/{id}")
+async def delivery_lots_id_delete(id: int):
+    return {"message": "Delivery Lot Deleted"}
+
 @router.post("/{id}/plan")
 async def delivery_lots_id_plan_post(id: int):
     return {"message": "Delivery plan queued for processing"}
