@@ -1,10 +1,34 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+import re
 
 router = APIRouter(prefix="/lots")
 
 @router.get("")
-async def delivery_lots_get():
-    return []
+async def delivery_lots_get(request: Request):
+    example = ''
+
+    if 'prefer' in request.headers:
+        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
+        if match:
+            example = match.group(1)
+
+    if 'empty' == example:
+        return []
+    elif 'list-1.0' == example:
+        return [
+            {
+                "id": 1,
+                "milestone_id": 1,
+                "deliveries": [1],
+                "fleet_id": 1,
+                "drivers": [1],
+                "state": "UNPROCESSED"
+            }
+        ]
+
+    message = {"message": "Work In Progress"}
+    return JSONResponse(content=message, status_code=503)
 
 @router.post("")
 async def delivery_lots_post():
