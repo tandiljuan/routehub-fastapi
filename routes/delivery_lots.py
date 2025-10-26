@@ -93,3 +93,7 @@ async def delivery_lots_id_patch(id: int):
         "drivers": [1],
         "state": "UNPROCESSED"
     }
+
+@router.post("/{id}/plan")
+async def delivery_lots_id_plan_post(id: int):
+    return {"message": "Delivery plan queued for processing"}
