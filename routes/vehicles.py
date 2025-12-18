@@ -68,5 +68,10 @@ async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate):
     return veh_db
 
 @router.delete("/{id}")
-async def vehicles_id_delete(id: int):
+async def vehicles_id_delete(id: int, db: DbSession):
+    veh_db = db.get(Vehicle, id)
+    if not veh_db:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    db.delete(veh_db)
+    db.commit()
     return {"message": "Vehicle Deleted"}
