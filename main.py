@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -8,7 +9,9 @@ from routes import milestones
 from routes import deliveries
 from routes import delivery_lots
 
-app = FastAPI(
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "PRD")
+
+app = FastAPI() if 'LCL' == ENVIRONMENT.upper() else FastAPI(
     docs_url=None,   # Disables Swagger UI
     redoc_url=None,  # Disables ReDoc
     openapi_url=None # Disables the OpenAPI JSON schema
