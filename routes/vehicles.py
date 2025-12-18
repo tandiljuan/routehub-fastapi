@@ -1,9 +1,7 @@
-import re
 from fastapi import (
     APIRouter,
-    Request,
+    HTTPException,
 )
-from fastapi.responses import JSONResponse
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import (
@@ -39,46 +37,17 @@ async def vehicles_post(db: DbSession, post_data: VehicleCreate):
     db.refresh(veh_db)
     return veh_db
 
-@router.get("/{id}")
-async def vehicles_id_get(id: int, request: Request):
-    key = ''
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'(\w+)=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            key = match.group(1)
-            example = match.group(2)
-
-    if 'code' == key:
-        message = {"message": "..."}
-        return JSONResponse(content=message, status_code=int(example))
-
-    if 'vehicle-1.0' == example:
-        return {
-            "id": 1,
-            "name": "pickup",
-            "volume": 1230000,
-            "volume_unit": "CUBIC_CENTIMETER",
-            "consumption": 12,
-            "consumption_unit": "LITERS_PER_100KM",
-            "category_type": "PICKUP",
-            "engine_type": "DIESEL"
-        }
-    elif 'vehicle-1.1' == example:
-        return {
-            "id": 1,
-            "name": "pickup-update",
-            "volume": 1230000,
-            "volume_unit": "CUBIC_CENTIMETER",
-            "consumption": 10,
-            "consumption_unit": "LITERS_PER_100KM",
-            "category_type": "PICKUP",
-            "engine_type": "DIESEL"
-        }
-
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+@router.get(
+    "/{id}",
+    response_model=VehicleResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def vehicles_id_get(id: int, db: DbSession):
+    veh_db = db.get(Vehicle, id)
+    if not veh_db:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return veh_db
 
 @router.patch("/{id}")
 async def vehicles_id_patch(id: int):
