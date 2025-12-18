@@ -23,5 +23,5 @@ app.include_router(delivery_lots.router)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+    message = {"code": exc.status_code, "message": exc.detail}
+    return JSONResponse(content=message, status_code=exc.status_code)
