@@ -4,6 +4,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
+from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import (
     Vehicle,
@@ -13,46 +14,15 @@ from models.vehicle import (
 
 router = APIRouter(prefix="/vehicles")
 
-@router.get("")
-async def vehicles_get(request: Request):
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            example = match.group(1)
-
-    if 'empty' == example:
-        return []
-    elif 'list-1.0' == example:
-        return [
-            {
-                "id": 1,
-                "name": "pickup",
-                "volume": 1230000,
-                "volume_unit": "CUBIC_CENTIMETER",
-                "consumption": 12,
-                "consumption_unit": "LITERS_PER_100KM",
-                "category_type": "PICKUP",
-                "engine_type": "DIESEL"
-            }
-        ]
-    elif 'list-1.1' == example:
-        return [
-            {
-                "id": 1,
-                "name": "pickup-update",
-                "volume": 1230000,
-                "volume_unit": "CUBIC_CENTIMETER",
-                "consumption": 10,
-                "consumption_unit": "LITERS_PER_100KM",
-                "category_type": "PICKUP",
-                "engine_type": "DIESEL"
-            }
-        ]
-
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+@router.get(
+    "",
+    response_model=list[VehicleResponse],
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def vehicles_get(db: DbSession):
+    veh_list = db.exec(select(Vehicle)).all()
+    return veh_list
 
 @router.post(
     "",
