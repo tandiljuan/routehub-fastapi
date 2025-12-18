@@ -8,6 +8,7 @@ from models.vehicle import (
     Vehicle,
     VehicleCreate,
     VehicleResponse,
+    VehicleUpdate,
 )
 
 router = APIRouter(prefix="/vehicles")
@@ -49,18 +50,22 @@ async def vehicles_id_get(id: int, db: DbSession):
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return veh_db
 
-@router.patch("/{id}")
-async def vehicles_id_patch(id: int):
-    return {
-        "id": 1,
-        "name": "pickup-update",
-        "volume": 1230000,
-        "volume_unit": "CUBIC_CENTIMETER",
-        "consumption": 10,
-        "consumption_unit": "LITERS_PER_100KM",
-        "category_type": "PICKUP",
-        "engine_type": "DIESEL"
-    }
+@router.patch(
+    "/{id}",
+    response_model=VehicleResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate):
+    veh_db = db.get(Vehicle, id)
+    if not veh_db:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    veh_dict = patch_data.model_dump(exclude_unset=True)
+    veh_db.sqlmodel_update(veh_dict)
+    db.add(veh_db)
+    db.commit()
+    db.refresh(veh_db)
+    return veh_db
 
 @router.delete("/{id}")
 async def vehicles_id_delete(id: int):
