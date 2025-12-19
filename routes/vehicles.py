@@ -28,6 +28,7 @@ async def vehicles_get(db: DbSession):
     response_model=VehicleResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
+    status_code=201,
 )
 async def vehicles_post(db: DbSession, post_data: VehicleCreate):
     veh_dict = post_data.model_dump()
