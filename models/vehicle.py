@@ -1,3 +1,4 @@
+from pydantic import field_serializer
 from sqlmodel import (
     Column,
     Enum,
@@ -29,6 +30,10 @@ class VehicleUpdate(VehicleCreate):
 
 class VehicleResponse(VehicleCreate):
     id: str | int
+
+    @field_serializer('id', when_used='json')
+    def serialize_id_to_str(self, id: int):
+        return str(id)
 
 class Vehicle(VehicleBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
