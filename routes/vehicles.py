@@ -75,4 +75,4 @@ async def vehicles_id_delete(id: int, db: DbSession):
         raise HTTPException(status_code=404, detail="Vehicle not found")
     db.delete(veh_db)
     db.commit()
-    return {"message": "Vehicle Deleted"}
+    return {"code": 200, "message": "Vehicle Deleted"}
