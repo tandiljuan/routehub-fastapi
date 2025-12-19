@@ -1,6 +1,8 @@
 from fastapi import (
     APIRouter,
     HTTPException,
+    Request,
+    Response,
 )
 from sqlmodel import select
 from models.database import Session as DbSession
@@ -30,17 +32,25 @@ async def vehicles_get(db: DbSession):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def vehicles_post(db: DbSession, post_data: VehicleCreate):
+async def vehicles_post(
+    request: Request,
+    response: Response,
+    db: DbSession,
+    post_data: VehicleCreate
+):
     veh_dict = post_data.model_dump()
     veh_dict['company_id'] = 1
     veh_db = Vehicle.model_validate(veh_dict)
     db.add(veh_db)
     db.commit()
     db.refresh(veh_db)
+    veh_url = request.url_for("vehicles_id_get", id=veh_db.id)
+    response.headers["location"] = f"{veh_url}"
     return veh_db
 
 @router.get(
     "/{id}",
+    name="vehicles_id_get",
     response_model=VehicleResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
