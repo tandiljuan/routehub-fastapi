@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
 import re
+from fastapi import (
+    APIRouter,
+    Request,
+)
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/fleets")
 
