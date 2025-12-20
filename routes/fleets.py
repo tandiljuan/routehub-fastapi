@@ -4,6 +4,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
+from models.fleet import FleetCreate
 
 router = APIRouter(prefix="/fleets")
 
@@ -49,7 +50,7 @@ async def fleets_get(request: Request):
     return JSONResponse(content=message, status_code=503)
 
 @router.post("")
-async def fleets_post():
+async def fleets_post(post_data: FleetCreate):
     return {
         "id": 1,
         "name": "my-fleet",
