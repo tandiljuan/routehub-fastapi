@@ -4,7 +4,10 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
-from models.fleet import FleetCreate
+from models.fleet import (
+    FleetCreate,
+    FleetResponse,
+)
 
 router = APIRouter(prefix="/fleets")
 
@@ -49,7 +52,12 @@ async def fleets_get(request: Request):
     message = {"message": "Work In Progress"}
     return JSONResponse(content=message, status_code=503)
 
-@router.post("")
+@router.post(
+    "",
+    response_model=FleetResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
 async def fleets_post(post_data: FleetCreate):
     return {
         "id": 1,
