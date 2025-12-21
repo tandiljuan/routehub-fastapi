@@ -61,6 +61,7 @@ async def fleets_get(request: Request):
     response_model=FleetResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
+    status_code=201,
 )
 async def fleets_post(db: DbSession, post_data: FleetCreate):
     # Add Company ID to submitted data
