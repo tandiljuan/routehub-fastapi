@@ -24,6 +24,10 @@ class FleetVehicleCreate(SQLModel):
 class FleetCreate(FleetBase):
     vehicles: list[FleetVehicleCreate]
 
+class FleetUpdate(FleetCreate):
+    name: str | None = None
+    vehicles: list[FleetVehicleCreate] | None = None
+
 class FleetVehicleResponse(VehicleResponse):
     qty: int
 
