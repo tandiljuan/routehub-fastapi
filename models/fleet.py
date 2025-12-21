@@ -1,4 +1,8 @@
-from pydantic import field_serializer
+from pydantic import (
+    SerializerFunctionWrapHandler as sfWrapHandler,
+    field_serializer,
+    model_serializer,
+)
 from sqlmodel import (
     Field,
     Relationship,
@@ -36,6 +40,20 @@ class Fleet(FleetBase, table=True):
     company_id: int = Field(foreign_key="company.id")
 
     vehicles: list["FleetVehicle"] = Relationship(back_populates="fleet")
+
+    @model_serializer(mode='wrap')
+    def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
+        # Output from default serializer
+        serialized = handler(self)
+        # Build 'vehicles' attribute from relations
+        if self.vehicles:
+            vehicles = []
+            for link in self.vehicles:
+                v = link.vehicle.model_dump()
+                v['qty'] = link.quantity
+                vehicles.append(v)
+            serialized['vehicles'] = vehicles
+        return serialized
 
 class FleetVehicle(SQLModel, table=True):
     __tablename__ = "fleet_vehicle"
