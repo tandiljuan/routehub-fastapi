@@ -1,10 +1,9 @@
-import re
 from fastapi import (
     APIRouter,
+    HTTPException,
     Request,
     Response,
 )
-from fastapi.responses import JSONResponse
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import Vehicle
@@ -83,46 +82,15 @@ async def fleets_post(
 @router.get(
     "/{id}",
     name="fleets_id_get",
+    response_model=FleetResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
 )
-async def fleets_id_get(id: int, request: Request):
-    key = ''
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'(\w+)=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            key = match.group(1)
-            example = match.group(2)
-
-    if 'code' == key:
-        message = {"message": "..."}
-        return JSONResponse(content=message, status_code=int(example))
-
-    if 'fleet-1.0' == example:
-        return {
-            "id": 1,
-            "name": "my-fleet",
-            "vehicles": [
-                {
-                    "vehicle_id": 1,
-                    "quantity": 2
-                }
-            ]
-        }
-    elif 'fleet-1.1' == example:
-        return {
-            "id": 1,
-            "name": "my-fleet-update",
-            "vehicles": [
-                {
-                    "vehicle_id": 2,
-                    "quantity": 3
-                }
-            ]
-        }
-
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+async def fleets_id_get(id: int, db: DbSession):
+    flt_db = db.get(Fleet, id)
+    if not flt_db:
+        raise HTTPException(status_code=404, detail="Fleet not found")
+    return flt_db.model_dump()
 
 @router.patch("/{id}")
 async def fleets_id_patch(id: int):
