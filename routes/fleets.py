@@ -5,6 +5,7 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import JSONResponse
+from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import Vehicle
 from models.fleet import (
@@ -16,46 +17,18 @@ from models.fleet import (
 
 router = APIRouter(prefix="/fleets")
 
-@router.get("")
-async def fleets_get(request: Request):
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            example = match.group(1)
-
-    if 'empty' == example:
-        return []
-    elif 'list-1.0' == example:
-        return [
-            {
-                "id": 1,
-                "name": "my-fleet",
-                "vehicles": [
-                    {
-                        "vehicle_id": 1,
-                        "quantity": 2
-                    }
-                ]
-            }
-        ]
-    elif 'list-1.1' == example:
-        return [
-            {
-                "id": 1,
-                "name": "my-fleet-update",
-                "vehicles": [
-                    {
-                        "vehicle_id": 2,
-                        "quantity": 3
-                    }
-                ]
-            }
-        ]
-
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+@router.get(
+    "",
+    response_model=list[FleetResponse],
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def fleets_get(db: DbSession):
+    response = []
+    flt_list = db.exec(select(Fleet)).all()
+    for f in flt_list:
+        response.append(f.model_dump())
+    return response
 
 @router.post(
     "",
