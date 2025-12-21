@@ -2,6 +2,7 @@ import re
 from fastapi import (
     APIRouter,
     Request,
+    Response,
 )
 from fastapi.responses import JSONResponse
 from models.database import Session as DbSession
@@ -63,7 +64,12 @@ async def fleets_get(request: Request):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def fleets_post(db: DbSession, post_data: FleetCreate):
+async def fleets_post(
+    request: Request,
+    response: Response,
+    db: DbSession,
+    post_data: FleetCreate,
+):
     # Add Company ID to submitted data
     flt_dict = post_data.model_dump()
     flt_dict['company_id'] = 1
@@ -93,11 +99,18 @@ async def fleets_post(db: DbSession, post_data: FleetCreate):
             db.add(flt_db)
             db.commit()
 
+    # Set location header
+    flt_url = request.url_for("fleets_id_get", id=flt_db.id)
+    response.headers["location"] = f"{flt_url}"
+
     # Return (custom serialized) Fleet
     db.refresh(flt_db)
     return flt_db.model_dump()
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    name="fleets_id_get",
+)
 async def fleets_id_get(id: int, request: Request):
     key = ''
     example = ''
