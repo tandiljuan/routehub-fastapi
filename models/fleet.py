@@ -1,6 +1,7 @@
 from pydantic import field_serializer
 from sqlmodel import (
     Field,
+    Relationship,
     SQLModel,
 )
 from .company import Company
@@ -34,9 +35,14 @@ class Fleet(FleetBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     company_id: int = Field(foreign_key="company.id")
 
+    vehicles: list["FleetVehicle"] = Relationship(back_populates="fleet")
+
 class FleetVehicle(SQLModel, table=True):
     __tablename__ = "fleet_vehicle"
 
     fleet_id: int | None = Field(default=None, foreign_key="fleet.id", primary_key=True)
     vehicle_id: int | None = Field(default=None, foreign_key="vehicle.id", primary_key=True)
     quantity: int
+
+    fleet: Fleet = Relationship(back_populates="vehicles")
+    vehicle: Vehicle = Relationship()
