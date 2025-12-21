@@ -11,6 +11,7 @@ from models.fleet import (
     Fleet,
     FleetCreate,
     FleetResponse,
+    FleetUpdate,
     FleetVehicle,
 )
 
@@ -92,18 +93,67 @@ async def fleets_id_get(id: int, db: DbSession):
         raise HTTPException(status_code=404, detail="Fleet not found")
     return flt_db.model_dump()
 
-@router.patch("/{id}")
-async def fleets_id_patch(id: int):
-    return {
-        "id": 1,
-        "name": "my-fleet-update",
-        "vehicles": [
-            {
-                "vehicle_id": 2,
-                "quantity": 3
-            }
-        ]
-    }
+@router.patch(
+    "/{id}",
+    response_model=FleetResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def fleets_id_patch(
+    id: int,
+    db: DbSession,
+    patch_data: FleetUpdate,
+):
+    # Retrieve Fleet
+    flt_db = db.get(Fleet, id)
+    if not flt_db:
+        raise HTTPException(status_code=404, detail="Fleet not found")
+
+    # Update Fleet
+    flt_dict = patch_data.model_dump(exclude_unset=True)
+    flt_db.sqlmodel_update(flt_dict)
+    db.add(flt_db)
+    db.commit()
+
+    # Update relations between Fleet and Vehicles
+    patch_vehicles = patch_data.vehicles or []
+    for v in patch_vehicles:
+        veh_id = int(v.id)
+        veh_qty = int(v.qty)
+        exist = False
+
+        # Update existing relation
+        for link in flt_db.vehicles:
+            if link.vehicle_id == veh_id:
+                exist = True
+                if veh_qty != link.quantity:
+                    if veh_qty > 0:
+                        link.quantity = veh_qty
+                        db.add(link)
+                        db.commit()
+                    else:
+                        db.delete(link)
+                        db.commit()
+                break
+
+        if exist or veh_qty < 1:
+            continue
+
+        # Create new relation
+        veh_db = db.get(Vehicle, veh_id)
+        if veh_db:
+            link = FleetVehicle(
+                fleet=flt_db,
+                vehicle=veh_db,
+                quantity=veh_qty,
+            )
+            flt_db.vehicles.append(link)
+            db.add(flt_db)
+            db.commit()
+
+    # Return (custom serialized) Fleet
+    db.refresh(flt_db)
+    return flt_db.model_dump()
 
 @router.delete("/{id}")
 async def fleets_id_delete(id: int):
