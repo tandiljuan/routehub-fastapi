@@ -4,7 +4,10 @@ from sqlmodel import (
     SQLModel,
 )
 from .company import Company
-from .vehicle import VehicleResponse
+from .vehicle import (
+    Vehicle,
+    VehicleResponse,
+)
 
 class FleetBase(SQLModel):
     name: str
@@ -30,3 +33,10 @@ class FleetResponse(FleetCreate):
 class Fleet(FleetBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     company_id: int = Field(foreign_key="company.id")
+
+class FleetVehicle(SQLModel, table=True):
+    __tablename__ = "fleet_vehicle"
+
+    fleet_id: int | None = Field(default=None, foreign_key="fleet.id", primary_key=True)
+    vehicle_id: int | None = Field(default=None, foreign_key="vehicle.id", primary_key=True)
+    quantity: int
