@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS fleet_vehicle (
   quantity INTEGER NOT NULL,
   FOREIGN KEY(fleet_id) REFERENCES fleet(id) ON DELETE CASCADE,
   FOREIGN KEY(vehicle_id) REFERENCES vehicle(id) ON DELETE CASCADE
+  PRIMARY KEY (fleet_id, vehicle_id)
 );
 CREATE TABLE IF NOT EXISTS driver (
   id INTEGER PRIMARY KEY,
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS driver_vehicle (
   quantity INTEGER NOT NULL,
   FOREIGN KEY(driver_id) REFERENCES driver(id) ON DELETE CASCADE,
   FOREIGN KEY(vehicle_id) REFERENCES vehicle(id) ON DELETE CASCADE
+  PRIMARY KEY (driver_id, vehicle_id)
 );
 CREATE TABLE IF NOT EXISTS milestone (
   id INTEGER PRIMARY KEY,
