@@ -43,7 +43,7 @@ class Fleet(FleetBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     company_id: int = Field(foreign_key="company.id")
 
-    vehicles: list["FleetVehicle"] = Relationship(back_populates="fleet")
+    vehicles: list["FleetVehicle"] = Relationship(back_populates="fleet", passive_deletes="all")
 
     @model_serializer(mode='wrap')
     def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
