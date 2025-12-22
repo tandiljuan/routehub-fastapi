@@ -156,5 +156,10 @@ async def fleets_id_patch(
     return flt_db.model_dump()
 
 @router.delete("/{id}")
-async def fleets_id_delete(id: int):
-    return {"message": "Fleet Deleted"}
+async def fleets_id_delete(id: int, db: DbSession):
+    flt_db = db.get(Fleet, id)
+    if not flt_db:
+        raise HTTPException(status_code=404, detail="Fleet not found")
+    db.delete(flt_db)
+    db.commit()
+    return {"code": 200, "message": "Fleet Deleted"}
