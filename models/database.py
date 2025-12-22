@@ -1,19 +1,21 @@
 import os
 from typing import Annotated
 from fastapi import Depends
-from sqlmodel import SQLModel
-from sqlmodel import Session as SQLModel_Session
-from sqlmodel import create_engine
+from sqlmodel import (
+    SQLModel,
+    Session as SQLModel_Session,
+    create_engine,
+    text,
+)
 
 RDBMS_URL = os.environ.get("RDBMS_URL")
 RDBMS_USR = os.environ.get("RDBMS_USR")
 RDBMS_PWD = os.environ.get("RDBMS_PWD")
 
-connect_args = {}
+IS_SQLITE = True if "sqlite" in RDBMS_URL else False
 
 # Connection arguments for SQLite with multi-threading FastAPI
-if "sqlite" in RDBMS_URL:
-    connect_args = {"check_same_thread": False}
+connect_args = {"check_same_thread": False} if IS_SQLITE else {}
 
 # Create the engine.
 # Set `echo=True` to display SQL queries in the console.
@@ -22,6 +24,10 @@ engine = create_engine(
     echo=True,
     connect_args=connect_args,
 )
+
+if IS_SQLITE:
+    with engine.connect() as connection:
+        connection.execute(text("PRAGMA foreign_keys=ON"))
 
 def get_engine():
     return engine
