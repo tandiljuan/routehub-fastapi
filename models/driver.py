@@ -6,7 +6,10 @@ from sqlmodel import (
     SQLModel,
 )
 from .company import Company
-from .vehicle import VehicleResponse
+from .vehicle import (
+    Vehicle,
+    VehicleResponse,
+)
 
 class DriverBase(SQLModel):
     first_name: str
@@ -37,3 +40,10 @@ class DriverResponse(DriverCreate):
 class Driver(DriverBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     company_id: int = Field(foreign_key="company.id")
+
+class DriverVehicle(SQLModel, table=True):
+    __tablename__ = "driver_vehicle"
+
+    driver_id: int | None = Field(default=None, foreign_key="driver.id", primary_key=True)
+    vehicle_id: int | None = Field(default=None, foreign_key="vehicle.id", primary_key=True)
+    quantity: int
