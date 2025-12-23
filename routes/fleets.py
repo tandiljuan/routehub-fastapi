@@ -15,7 +15,10 @@ from models.fleet import (
     FleetVehicle,
 )
 
-router = APIRouter(prefix="/fleets")
+router = APIRouter(
+    prefix="/fleets",
+    tags=["fleets"],
+)
 
 @router.get(
     "",
