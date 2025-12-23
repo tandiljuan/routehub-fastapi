@@ -4,6 +4,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
+from models.driver import DriverCreate
 
 router = APIRouter(prefix="/drivers")
 
@@ -73,7 +74,7 @@ async def drivers_get(request: Request):
     return JSONResponse(content=message, status_code=503)
 
 @router.post("")
-async def drivers_post():
+async def drivers_post(post_data: DriverCreate):
     return {
         "id": 1,
         "first_name": "John",
