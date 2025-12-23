@@ -1,9 +1,11 @@
+from pydantic import field_serializer
 from sqlmodel import (
     Column,
     Field,
     JSON,
     SQLModel,
 )
+from .vehicle import VehicleResponse
 
 class DriverBase(SQLModel):
     first_name: str
@@ -19,3 +21,14 @@ class DriverVehicleCreate(SQLModel):
 
 class DriverCreate(DriverBase):
     vehicles: list[DriverVehicleCreate] | None = None
+
+class DriverVehicleResponse(VehicleResponse):
+    qty: int
+
+class DriverResponse(DriverCreate):
+    id: str | int
+    vehicles: list[DriverVehicleResponse] | None = None
+
+    @field_serializer('id', when_used='json')
+    def serialize_id_to_str(self, id: int):
+        return str(id)
