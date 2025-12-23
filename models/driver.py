@@ -3,6 +3,7 @@ from sqlmodel import (
     Column,
     Field,
     JSON,
+    Relationship,
     SQLModel,
 )
 from .company import Company
@@ -41,9 +42,14 @@ class Driver(DriverBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     company_id: int = Field(foreign_key="company.id")
 
+    vehicles: list["DriverVehicle"] = Relationship(back_populates="driver", passive_deletes="all")
+
 class DriverVehicle(SQLModel, table=True):
     __tablename__ = "driver_vehicle"
 
     driver_id: int | None = Field(default=None, foreign_key="driver.id", primary_key=True)
     vehicle_id: int | None = Field(default=None, foreign_key="vehicle.id", primary_key=True)
     quantity: int
+
+    driver: Driver = Relationship(back_populates="vehicles")
+    vehicle: Vehicle = Relationship()
