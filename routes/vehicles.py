@@ -13,7 +13,10 @@ from models.vehicle import (
     VehicleUpdate,
 )
 
-router = APIRouter(prefix="/vehicles")
+router = APIRouter(
+    prefix="/vehicles",
+    tags=["vehicles"],
+)
 
 @router.get(
     "",
