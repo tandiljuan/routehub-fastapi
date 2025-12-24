@@ -1,10 +1,9 @@
-import re
 from fastapi import (
     APIRouter,
+    HTTPException,
     Request,
     Response,
 )
-from fastapi.responses import JSONResponse
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import Vehicle
@@ -85,67 +84,15 @@ async def drivers_post(
 @router.get(
     "/{id}",
     name="drivers_id_get",
+    response_model=DriverResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
 )
-async def drivers_id_get(id: int, request: Request):
-    key = ''
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'(\w+)=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            key = match.group(1)
-            example = match.group(2)
-
-    if 'code' == key:
-        message = {"message": "..."}
-        return JSONResponse(content=message, status_code=int(example))
-
-    if 'driver-1.0' == example:
-        return {
-            "id": 1,
-            "first_name": "John",
-            "last_name": "Doe",
-            "work_schedules": [
-                "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-            ],
-            "start_point": "37.7749,-122.4194",
-            "work_areas": [
-                [
-                    "37.7749,-122.4194",
-                    "37.7749,-122.4195",
-                    "37.7750,-122.4194"
-                ]
-            ],
-            "vehicles": [
-                {
-                    "vehicle_id": 1,
-                    "quantity": 2
-                }
-            ]
-        }
-    elif 'driver-1.1' == example:
-        return {
-            "id": 1,
-            "first_name": "Jane",
-            "last_name": "Smith",
-            "work_schedules": [
-                "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-            ],
-            "start_point": "37.7749,-122.4194",
-            "work_areas": [
-                [
-                    "37.7749,-122.4194",
-                    "37.7749,-122.4195",
-                    "37.7750,-122.4194"
-                ]
-            ],
-            "vehicles": [
-                {
-                    "vehicle_id": 1,
-                    "quantity": 2
-                }
-            ]
-        }
+async def drivers_id_get(id: int, db: DbSession):
+    drv_db = db.get(Driver, id)
+    if not drv_db:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    return drv_db.model_dump()
 
 @router.patch("/{id}")
 async def drivers_id_patch(id: int):
