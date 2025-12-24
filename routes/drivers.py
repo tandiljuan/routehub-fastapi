@@ -85,6 +85,7 @@ async def drivers_get(request: Request):
     response_model=DriverResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
+    status_code=201,
 )
 async def drivers_post(db: DbSession, post_data: DriverCreate):
     # Dump submitted data as dictionary
