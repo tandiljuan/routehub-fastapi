@@ -31,6 +31,9 @@ class DriverVehicleCreate(SQLModel):
 class DriverCreate(DriverBase):
     vehicles: list[DriverVehicleCreate] | None = None
 
+class DriverUpdate(DriverCreate):
+    first_name: str | None = None
+
 class DriverVehicleResponse(VehicleResponse):
     qty: int
 
