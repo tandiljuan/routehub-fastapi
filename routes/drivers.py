@@ -5,6 +5,7 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import JSONResponse
+from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import Vehicle
 from models.driver import (
@@ -16,70 +17,18 @@ from models.driver import (
 
 router = APIRouter(prefix="/drivers")
 
-@router.get("")
-async def drivers_get(request: Request):
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            example = match.group(1)
-
-    if 'empty' == example:
-        return []
-    elif 'list-1.0' == example:
-        return [
-            {
-                "id": 1,
-                "first_name": "John",
-                "last_name": "Doe",
-                "work_schedules": [
-                    "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-                ],
-                "start_point": "37.7749,-122.4194",
-                "work_areas": [
-                    [
-                        "37.7749,-122.4194",
-                        "37.7749,-122.4195",
-                        "37.7750,-122.4194"
-                    ]
-                ],
-                "vehicles": [
-                    {
-                        "vehicle_id": 1,
-                        "quantity": 2
-                    }
-                ]
-            }
-        ]
-    elif 'list-1.1' == example:
-        return [
-            {
-                "id": 1,
-                "first_name": "Jane",
-                "last_name": "Smith",
-                "work_schedules": [
-                    "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-                ],
-                "start_point": "37.7749,-122.4194",
-                "work_areas": [
-                    [
-                        "37.7749,-122.4194",
-                        "37.7749,-122.4195",
-                        "37.7750,-122.4194"
-                    ]
-                ],
-                "vehicles": [
-                    {
-                        "vehicle_id": 1,
-                        "quantity": 2
-                    }
-                ]
-            }
-        ]
-
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+@router.get(
+    "",
+    response_model=list[DriverResponse],
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def fleets_get(db: DbSession):
+    response = []
+    drv_list = db.exec(select(Driver)).all()
+    for d in drv_list:
+        response.append(d.model_dump())
+    return response
 
 @router.post(
     "",
