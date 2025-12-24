@@ -162,5 +162,10 @@ async def drivers_id_patch(
     return drv_db.model_dump()
 
 @router.delete("/{id}")
-async def drivers_id_delete(id: int):
-    return {"message": "Fleet Deleted"}
+async def drivers_id_delete(id: int, db: DbSession):
+    drv_db = db.get(Driver, id)
+    if not drv_db:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    db.delete(drv_db)
+    db.commit()
+    return {"code": 200, "message": "Driver Deleted"}
