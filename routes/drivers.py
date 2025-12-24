@@ -2,6 +2,7 @@ import re
 from fastapi import (
     APIRouter,
     Request,
+    Response,
 )
 from fastapi.responses import JSONResponse
 from models.database import Session as DbSession
@@ -87,7 +88,12 @@ async def drivers_get(request: Request):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def drivers_post(db: DbSession, post_data: DriverCreate):
+async def drivers_post(
+    request: Request,
+    response: Response,
+    db: DbSession,
+    post_data: DriverCreate,
+):
     # Dump submitted data as dictionary
     drv_dict = post_data.model_dump()
     # Add Company ID to submitted data
@@ -119,11 +125,18 @@ async def drivers_post(db: DbSession, post_data: DriverCreate):
             db.add(drv_db)
             db.commit()
 
+    # Set location header
+    drv_url = request.url_for("drivers_id_get", id=drv_db.id)
+    response.headers["location"] = f"{drv_url}"
+
     # Return (custom serialized) Driver
     db.refresh(drv_db)
     return drv_db.model_dump()
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    name="drivers_id_get",
+)
 async def drivers_id_get(id: int, request: Request):
     key = ''
     example = ''
