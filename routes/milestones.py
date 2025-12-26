@@ -51,6 +51,7 @@ async def milestones_get(request: Request):
     response_model=MilestoneResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
+    status_code=201,
 )
 async def milestones_post(db: DbSession, post_data: MilestoneCreate):
     mst_dict = post_data.model_dump()
