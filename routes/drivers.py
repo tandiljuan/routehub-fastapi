@@ -15,7 +15,10 @@ from models.driver import (
     DriverVehicle,
 )
 
-router = APIRouter(prefix="/drivers")
+router = APIRouter(
+    prefix="/drivers",
+    tags=["drivers"],
+)
 
 @router.get(
     "",
