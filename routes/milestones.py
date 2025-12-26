@@ -13,7 +13,10 @@ from models.milestone import (
     MilestoneUpdate,
 )
 
-router = APIRouter(prefix="/milestones")
+router = APIRouter(
+    prefix="/milestones",
+    tags=["milestones"],
+)
 
 @router.get(
     "",
