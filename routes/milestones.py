@@ -1,10 +1,9 @@
-import re
 from fastapi import (
     APIRouter,
+    HTTPException,
     Request,
     Response,
 )
-from fastapi.responses import JSONResponse
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.milestone import (
@@ -51,38 +50,15 @@ async def milestones_post(
 @router.get(
     "/{id}",
     name="milestones_id_get",
+    response_model=MilestoneResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
 )
-async def milestones_id_get(id: int, request: Request):
-    key = ''
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'(\w+)=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            key = match.group(1)
-            example = match.group(2)
-
-    if 'code' == key:
-        message = {"message": "..."}
-        return JSONResponse(content=message, status_code=int(example))
-
-    if 'milestone-1.0' == example:
-        return {
-            "id": 1,
-            "name": "Main Depot",
-            "location": "37.7749,-122.4194",
-            "milestone_category": "DEPOT"
-        }
-    elif 'milestone-1.1' == example:
-        return {
-            "id": 1,
-            "name": "Main Distribution Point",
-            "location": "37.7749,-122.4194",
-            "milestone_category": "DISTRIBUTION_CENTER"
-        }
-
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+async def milestones_id_get(id: int, db: DbSession):
+    mst_db = db.get(Milestone, id)
+    if not mst_db:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    return mst_db
 
 @router.patch("/{id}")
 async def milestones_id_patch(id: int):
