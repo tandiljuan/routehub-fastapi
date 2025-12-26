@@ -6,6 +6,7 @@ from sqlmodel import (
     SQLModel,
 )
 from .enum import MilestoneCategory
+from .company import Company
 
 class MilestoneBase(SQLModel):
     name: str
@@ -21,3 +22,7 @@ class MilestoneResponse(MilestoneCreate):
     @field_serializer('id', when_used='json')
     def serialize_id_to_str(self, id: int):
         return str(id)
+
+class Milestone(MilestoneBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    company_id: int = Field(foreign_key="company.id")
