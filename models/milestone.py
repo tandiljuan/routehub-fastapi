@@ -1,3 +1,4 @@
+from pydantic import field_serializer
 from sqlmodel import (
     Column,
     Enum,
@@ -13,3 +14,10 @@ class MilestoneBase(SQLModel):
 
 class MilestoneCreate(MilestoneBase):
     pass
+
+class MilestoneResponse(MilestoneCreate):
+    id: str | int
+
+    @field_serializer('id', when_used='json')
+    def serialize_id_to_str(self, id: int):
+        return str(id)
