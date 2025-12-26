@@ -2,6 +2,7 @@ import re
 from fastapi import (
     APIRouter,
     Request,
+    Response,
 )
 from fastapi.responses import JSONResponse
 from models.database import Session as DbSession
@@ -53,16 +54,26 @@ async def milestones_get(request: Request):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def milestones_post(db: DbSession, post_data: MilestoneCreate):
+async def milestones_post(
+    request: Request,
+    response: Response,
+    db: DbSession,
+    post_data: MilestoneCreate,
+):
     mst_dict = post_data.model_dump()
     mst_dict['company_id'] = 1
     mst_db = Milestone.model_validate(mst_dict)
     db.add(mst_db)
     db.commit()
+    mst_url = request.url_for("milestones_id_get", id=mst_db.id)
+    response.headers["location"] = f"{mst_url}"
     db.refresh(mst_db)
     return mst_db
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    name="milestones_id_get",
+)
 async def milestones_id_get(id: int, request: Request):
     key = ''
     example = ''
