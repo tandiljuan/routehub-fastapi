@@ -4,6 +4,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
+from models.milestone import MilestoneCreate
 
 router = APIRouter(prefix="/milestones")
 
@@ -41,7 +42,7 @@ async def milestones_get(request: Request):
     return JSONResponse(content=message, status_code=503)
 
 @router.post("")
-async def milestones_post():
+async def milestones_post(post_data: MilestoneCreate):
     return {
         "id": 1,
         "name": "Main Depot",
