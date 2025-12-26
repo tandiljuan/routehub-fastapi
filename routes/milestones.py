@@ -10,6 +10,7 @@ from models.milestone import (
     Milestone,
     MilestoneCreate,
     MilestoneResponse,
+    MilestoneUpdate,
 )
 
 router = APIRouter(prefix="/milestones")
@@ -60,14 +61,22 @@ async def milestones_id_get(id: int, db: DbSession):
         raise HTTPException(status_code=404, detail="Milestone not found")
     return mst_db
 
-@router.patch("/{id}")
-async def milestones_id_patch(id: int):
-    return {
-        "id": 1,
-        "name": "Main Distribution Point",
-        "location": "37.7749,-122.4194",
-        "milestone_category": "DISTRIBUTION_CENTER"
-    }
+@router.patch(
+    "/{id}",
+    response_model=MilestoneResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdate):
+    mst_db = db.get(Milestone, id)
+    if not mst_db:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    mst_dict = patch_data.model_dump(exclude_unset=True)
+    mst_db.sqlmodel_update(mst_dict)
+    db.add(mst_db)
+    db.commit()
+    db.refresh(mst_db)
+    return mst_db
 
 @router.delete("/{id}")
 async def milestones_id_delete(id: int):
