@@ -79,5 +79,10 @@ async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdat
     return mst_db
 
 @router.delete("/{id}")
-async def milestones_id_delete(id: int):
-    return {"message": "Milestone Deleted"}
+async def milestones_id_delete(id: int, db: DbSession):
+    mst_db = db.get(Milestone, id)
+    if not mst_db:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    db.delete(mst_db)
+    db.commit()
+    return {"code": 200, "message": "Milestone Deleted"}
