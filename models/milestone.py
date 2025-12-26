@@ -16,6 +16,10 @@ class MilestoneBase(SQLModel):
 class MilestoneCreate(MilestoneBase):
     pass
 
+class MilestoneUpdate(MilestoneCreate):
+    name: str | None = None
+    location: str | None = None
+
 class MilestoneResponse(MilestoneCreate):
     id: str | int
 
