@@ -2,6 +2,7 @@ import re
 from fastapi import (
     APIRouter,
     Request,
+    Response,
 )
 from fastapi.responses import JSONResponse
 from models.database import Session as DbSession
@@ -72,6 +73,8 @@ async def deliveries_get(request: Request):
     status_code=201,
 )
 async def deliveries_post(
+    request: Request,
+    response: Response,
     db: DbSession,
     post_data: DeliveryCreate,
 ):
@@ -80,10 +83,15 @@ async def deliveries_post(
     dlv_db = Delivery.model_validate(dlv_dict)
     db.add(dlv_db)
     db.commit()
+    dlv_url = request.url_for("deliveries_id_get", id=dlv_db.id)
+    response.headers["location"] = f"{dlv_url}"
     db.refresh(dlv_db)
     return dlv_db
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    name="deliveries_id_get",
+)
 async def deliveries_id_get(id: int, request: Request):
     key = ''
     example = ''
