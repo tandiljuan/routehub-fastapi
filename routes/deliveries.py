@@ -4,7 +4,9 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
+from models.database import Session as DbSession
 from models.delivery import (
+    Delivery,
     DeliveryCreate,
     DeliveryResponse,
 )
@@ -68,22 +70,17 @@ async def deliveries_get(request: Request):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def deliveries_post(post_data: DeliveryCreate):
-    return {
-        "id": 1,
-        "delivery_method": "DELIVERY",
-        "milestone_id": 1,
-        "destination": "37.7749,-122.4194",
-        "schedule": ["DTSTART:20240704T120000Z"],
-        "width": 10,
-        "height": 20,
-        "depth": 30,
-        "length_unit": "CENTIMETER",
-        "volume": 6000,
-        "volume_unit": "CUBIC_CENTIMETER",
-        "weight": 1000,
-        "weight_unit": "GRAMS"
-    }
+async def deliveries_post(
+    db: DbSession,
+    post_data: DeliveryCreate,
+):
+    dlv_dict = post_data.model_dump()
+    dlv_dict['company_id'] = 1
+    dlv_db = Delivery.model_validate(dlv_dict)
+    db.add(dlv_db)
+    db.commit()
+    db.refresh(dlv_db)
+    return dlv_db
 
 @router.get("/{id}")
 async def deliveries_id_get(id: int, request: Request):
