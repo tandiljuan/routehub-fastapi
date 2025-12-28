@@ -1,4 +1,5 @@
 from typing import Any
+from pydantic import field_serializer
 from sqlmodel import (
     Column,
     Enum,
@@ -14,6 +15,7 @@ from .enum import (
     VolumeUnit,
     WeightUnit,
 )
+from .milestone import MilestoneResponse
 
 class DeliveryBase(SQLModel):
     destination: str
@@ -35,3 +37,11 @@ class DeliveryBase(SQLModel):
 
 class DeliveryCreate(DeliveryBase):
     milestone_id: str
+
+class DeliveryResponse(DeliveryBase):
+    id: str | int
+    milestone: MilestoneResponse | None
+
+    @field_serializer('id', when_used='json')
+    def serialize_id_to_str(self, id: int):
+        return str(id)
