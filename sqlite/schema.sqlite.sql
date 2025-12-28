@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS delivery (
   weight INTEGER,
   weight_unit TEXT CHECK( weight_unit IN ( 'GRAMS', 'KILOGRAMS', 'OUNCES', 'POUNDS' ) ),
   packaging TEXT CHECK( packaging IN ( 'BOX', 'ENVELOPE', 'BAG', 'CARTON', 'PALLET', 'SHRINK_WRAP' ) ),
-  handling TEXT CHECK( handling IN ( 'FRAGILE', 'PERISHABLE', 'HAZARDOUS', 'REFRIGERATED' ) ),
+  handling TEXT, /* CHECK( handling IN ( 'FRAGILE', 'PERISHABLE', 'HAZARDOUS', 'REFRIGERATED' ) ),*/
   value_cents INTEGER,
   value_currency TEXT,
   extra TEXT,
