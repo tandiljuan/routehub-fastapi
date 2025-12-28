@@ -1,10 +1,15 @@
 from typing import Any
-from pydantic import field_serializer
+from pydantic import (
+    SerializerFunctionWrapHandler as sfWrapHandler,
+    field_serializer,
+    model_serializer,
+)
 from sqlmodel import (
     Column,
     Enum,
     Field,
     JSON,
+    Relationship,
     SQLModel,
 )
 from .enum import (
@@ -15,7 +20,11 @@ from .enum import (
     VolumeUnit,
     WeightUnit,
 )
-from .milestone import MilestoneResponse
+from .company import Company
+from .milestone import (
+    Milestone,
+    MilestoneResponse,
+)
 
 class DeliveryBase(SQLModel):
     destination: str
@@ -45,3 +54,19 @@ class DeliveryResponse(DeliveryBase):
     @field_serializer('id', when_used='json')
     def serialize_id_to_str(self, id: int):
         return str(id)
+
+class Delivery(DeliveryBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    company_id: int = Field(foreign_key="company.id")
+    milestone_id: int = Field(foreign_key="milestone.id")
+
+    milestone: Milestone | None = Relationship()
+
+    @model_serializer(mode='wrap')
+    def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
+        # Output from default serializer
+        serialized = handler(self)
+        # Build 'milestone' attribute from relation
+        if self.milestone:
+            serialized['milestone'] = self.milestone.model_dump()
+        return serialized
