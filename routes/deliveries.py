@@ -48,6 +48,24 @@ async def deliveries_post(
     db.refresh(dlv_db)
     return dlv_db
 
+@router.post(
+    "/bulk",
+    response_model=list[str],
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def deliveries_bulk_post(db: DbSession, post_data: list[DeliveryCreate]):
+    id_list = []
+    for dlv_post in post_data:
+        dlv_dict = dlv_post.model_dump()
+        dlv_dict['company_id'] = 1
+        dlv_db = Delivery.model_validate(dlv_dict)
+        db.add(dlv_db)
+        db.commit()
+        db.refresh(dlv_db)
+        id_list.append(str(dlv_db.id))
+    return id_list
+
 @router.get(
     "/{id}",
     name="deliveries_id_get",
