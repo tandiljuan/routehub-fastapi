@@ -47,6 +47,10 @@ class DeliveryBase(SQLModel):
 class DeliveryCreate(DeliveryBase):
     milestone_id: str
 
+class DeliveryUpdate(DeliveryCreate):
+    destination: str | None = None
+    milestone_id: str | None = None
+
 class DeliveryResponse(DeliveryBase):
     id: str | int
     milestone: MilestoneResponse | None
