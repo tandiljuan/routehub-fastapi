@@ -83,5 +83,10 @@ async def deliveries_id_patch(
     return dlv_db
 
 @router.delete("/{id}")
-async def deliveries_id_delete(id: int):
-    return {"message": "Fleet Deleted"}
+async def deliveries_id_delete(id: int, db: DbSession):
+    dlv_db = db.get(Delivery, id)
+    if not dlv_db:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    db.delete(dlv_db)
+    db.commit()
+    return {"code": 200, "message": "Delivery Deleted"}
