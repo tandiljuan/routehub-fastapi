@@ -10,6 +10,7 @@ from models.delivery import (
     Delivery,
     DeliveryCreate,
     DeliveryResponse,
+    DeliveryUpdate,
 )
 
 router = APIRouter(prefix="/deliveries")
@@ -60,23 +61,26 @@ async def deliveries_id_get(id: int, db: DbSession):
         raise HTTPException(status_code=404, detail="Delivery not found")
     return dlv_db
 
-@router.patch("/{id}")
-async def deliveries_id_patch(id: int):
-    return {
-        "id": 1,
-        "delivery_method": "DELIVERY",
-        "milestone_id": 1,
-        "destination": "37.7749,-122.4194",
-        "schedule": ["DTSTART:20240704T120000Z"],
-        "width": 15,
-        "height": 25,
-        "depth": 35,
-        "length_unit": "CENTIMETER",
-        "volume": 6500,
-        "volume_unit": "CUBIC_CENTIMETER",
-        "weight": 1500,
-        "weight_unit": "GRAMS"
-    }
+@router.patch(
+    "/{id}",
+    response_model=DeliveryResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def deliveries_id_patch(
+    id: int,
+    db: DbSession,
+    patch_data: DeliveryUpdate,
+):
+    dlv_db = db.get(Delivery, id)
+    if not dlv_db:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    dlv_dict = patch_data.model_dump(exclude_unset=True)
+    dlv_db.sqlmodel_update(dlv_dict)
+    db.add(dlv_db)
+    db.commit()
+    db.refresh(dlv_db)
+    return dlv_db
 
 @router.delete("/{id}")
 async def deliveries_id_delete(id: int):
