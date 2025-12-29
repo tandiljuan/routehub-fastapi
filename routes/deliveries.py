@@ -13,7 +13,10 @@ from models.delivery import (
     DeliveryUpdate,
 )
 
-router = APIRouter(prefix="/deliveries")
+router = APIRouter(
+    prefix="/deliveries",
+    tags=["deliveries"],
+)
 
 @router.get(
     "",
