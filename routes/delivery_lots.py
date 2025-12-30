@@ -4,6 +4,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
+from models.delivery_lot import DeliveryLotCreate
 
 router = APIRouter(prefix="/lots")
 
@@ -45,7 +46,7 @@ async def delivery_lots_get(request: Request):
     return JSONResponse(content=message, status_code=503)
 
 @router.post("")
-async def delivery_lots_post():
+async def delivery_lots_post(post_data: DeliveryLotCreate):
     return {
         "id": 1,
         "milestone_id": 1,
