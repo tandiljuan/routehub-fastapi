@@ -1,8 +1,14 @@
+from pydantic import field_serializer
 from sqlmodel import SQLModel
 from .enum import (
+    DeliveryLotState,
     LengthUnit,
     TimeUnit,
 )
+from .delivery import DeliveryResponse
+from .driver import DriverResponse
+from .fleet import FleetResponse
+from .milestone import MilestoneResponse
 
 class VehicleLimits(SQLModel):
     volume_min: int | None = None
@@ -29,3 +35,15 @@ class DeliveryLotCreate(DeliveryLotBase):
     deliveries: list[str]
     fleet_id: str
     drivers: list[str] | None = None
+
+class DeliveryLotResponse(DeliveryLotBase):
+    id: str | int
+    state: DeliveryLotState
+    milestone: MilestoneResponse
+    deliveries: list[DeliveryResponse]
+    fleet: FleetResponse | None = None
+    drivers: list[DriverResponse] | None = None
+
+    @field_serializer('id', when_used='json')
+    def serialize_id_to_str(self, id: int):
+        return str(id)
