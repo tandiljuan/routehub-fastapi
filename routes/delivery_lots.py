@@ -1,10 +1,9 @@
-import re
 from fastapi import (
     APIRouter,
+    HTTPException,
     Request,
     Response,
 )
-from fastapi.responses import JSONResponse
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.delivery import Delivery
@@ -94,42 +93,15 @@ async def delivery_lots_post(
 @router.get(
     "/{id}",
     name="delivery_lots_id_get",
+    response_model=DeliveryLotResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
 )
-async def delivery_lots_id_get(id: int, request: Request):
-    key = ''
-    example = ''
-
-    if 'prefer' in request.headers:
-        match = re.match(r'(\w+)=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            key = match.group(1)
-            example = match.group(2)
-
-    if 'code' == key:
-        message = {"message": "..."}
-        return JSONResponse(content=message, status_code=int(example))
-
-    if 'delivery-lot-1.0' == example:
-        return {
-            "id": 1,
-            "milestone_id": 1,
-            "deliveries": [1],
-            "fleet_id": 1,
-            "drivers": [1],
-            "state": "UNPROCESSED"
-        }
-    elif 'delivery-lot-1.1' == example:
-        return {
-            "id": 1,
-            "milestone_id": 1,
-            "deliveries": [1,2],
-            "fleet_id": 1,
-            "drivers": [1],
-            "state": "UNPROCESSED"
-        }
-
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+async def delivery_lots_id_get(id: int, db: DbSession):
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+    return lot_db.model_dump()
 
 @router.patch("/{id}")
 async def delivery_lots_id_patch(id: int):
