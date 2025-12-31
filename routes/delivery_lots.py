@@ -59,6 +59,7 @@ async def delivery_lots_get(request: Request):
     response_model=DeliveryLotResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
+    status_code=201,
 )
 async def delivery_lots_post(
     db: DbSession,
