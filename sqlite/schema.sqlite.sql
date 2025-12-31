@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS delivery_lot (
   route_length_min INTEGER,
   route_length_max INTEGER,
   route_length_unit TEXT CHECK( route_length_unit IN ( 'CENTIMETER', 'METER', 'INCH', 'FEET' ) ),
+  route_time_min INTEGER,
   route_time_max INTEGER,
   route_time_unit TEXT CHECK( route_time_unit IN ( 'SECOND', 'MINUTE', 'HOUR' ) ),
   FOREIGN KEY(company_id) REFERENCES company(id) ON DELETE CASCADE,
