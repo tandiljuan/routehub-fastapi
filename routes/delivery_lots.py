@@ -2,6 +2,7 @@ import re
 from fastapi import (
     APIRouter,
     Request,
+    Response,
 )
 from fastapi.responses import JSONResponse
 from models.database import Session as DbSession
@@ -62,6 +63,8 @@ async def delivery_lots_get(request: Request):
     status_code=201,
 )
 async def delivery_lots_post(
+    request: Request,
+    response: Response,
     db: DbSession,
     post_data: DeliveryLotCreate,
 ):
@@ -103,11 +106,18 @@ async def delivery_lots_post(
             db.add(lot_db)
             db.commit()
 
+    # Set location header
+    lot_url = request.url_for("delivery_lots_id_get", id=lot_db.id)
+    response.headers["location"] = f"{lot_url}"
+
     # Return (custom serialized) Lot
     db.refresh(lot_db)
     return lot_db.model_dump()
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    name="delivery_lots_id_get",
+)
 async def delivery_lots_id_get(id: int, request: Request):
     key = ''
     example = ''
