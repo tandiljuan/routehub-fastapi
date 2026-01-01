@@ -13,6 +13,7 @@ from models.delivery_lot import (
     DeliveryLotDelivery,
     DeliveryLotDriver,
     DeliveryLotResponse,
+    DeliveryLotUpdate,
 )
 from models.driver import Driver
 
@@ -103,16 +104,70 @@ async def delivery_lots_id_get(id: int, db: DbSession):
         raise HTTPException(status_code=404, detail="Delivery lot not found")
     return lot_db.model_dump()
 
-@router.patch("/{id}")
-async def delivery_lots_id_patch(id: int):
-    return {
-        "id": 1,
-        "milestone_id": 1,
-        "deliveries": [1,2],
-        "fleet_id": 1,
-        "drivers": [1],
-        "state": "UNPROCESSED"
-    }
+@router.patch(
+    "/{id}",
+    response_model=DeliveryLotResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def delivery_lots_id_patch(
+    id: int,
+    db: DbSession,
+    patch_data: DeliveryLotUpdate,
+):
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+
+    # Update Lot
+    lot_dict = patch_data.model_dump(exclude_unset=True)
+    lot_dict = DeliveryLot.normalize_submitted_dict(lot_dict)
+    lot_db.sqlmodel_update(lot_dict)
+    db.add(lot_db)
+    db.commit()
+
+    # Update relations between Lot and Deliveries
+    post_deliveries = patch_data.deliveries or []
+    if len(post_deliveries):
+        # Remove existing relation
+        for link in lot_db.deliveries:
+            db.delete(link)
+            db.commit()
+        # Load submitted data
+        for dlv_id in post_deliveries:
+            dlv_id = int(dlv_id)
+            dlv_db = db.get(Delivery, dlv_id)
+            if dlv_db:
+                link = DeliveryLotDelivery(
+                    lot=lot_db,
+                    delivery=dlv_db,
+                )
+                lot_db.deliveries.append(link)
+                db.add(lot_db)
+                db.commit()
+
+    # Update relations between Lot and Drivers
+    post_drivers = patch_data.drivers or []
+    if len(post_drivers):
+        # Remove existing relation
+        for link in lot_db.drivers:
+            db.delete(link)
+            db.commit()
+        for drv_id in post_deliveries:
+            drv_id = int(drv_id)
+            drv_db = db.get(Driver, drv_id)
+            if drv_db:
+                link = DeliveryLotDriver(
+                    lot=lot_db,
+                    driver=drv_db,
+                )
+                lot_db.drivers.append(link)
+                db.add(lot_db)
+                db.commit()
+
+    # Return (custom serialized) Lot
+    db.refresh(lot_db)
+    return lot_db.model_dump()
 
 @router.delete("/{id}")
 async def delivery_lots_id_delete(id: int):
