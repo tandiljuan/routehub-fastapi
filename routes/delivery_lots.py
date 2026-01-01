@@ -170,8 +170,16 @@ async def delivery_lots_id_patch(
     return lot_db.model_dump()
 
 @router.delete("/{id}")
-async def delivery_lots_id_delete(id: int):
-    return {"message": "Delivery Lot Deleted"}
+async def delivery_lots_id_delete(
+    id: int,
+    db: DbSession,
+):
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+    db.delete(lot_db)
+    db.commit()
+    return {"code": 200, "message": "Delivery lot Deleted"}
 
 @router.post("/{id}/plan")
 async def delivery_lots_id_plan_post(id: int):
