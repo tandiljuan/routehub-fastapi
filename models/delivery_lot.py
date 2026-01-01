@@ -59,6 +59,11 @@ class DeliveryLotCreate(DeliveryLotBase):
     fleet_id: str
     drivers: list[str] | None = None
 
+class DeliveryLotUpdate(DeliveryLotCreate):
+    milestone_id: str | None = None
+    deliveries: list[str] | None = None
+    fleet_id: str | None = None
+
 class DeliveryLotResponse(DeliveryLotBase):
     id: str | int
     state: DeliveryLotState
