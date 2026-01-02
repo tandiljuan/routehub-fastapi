@@ -17,7 +17,10 @@ from models.delivery_lot import (
 )
 from models.driver import Driver
 
-router = APIRouter(prefix="/lots")
+router = APIRouter(
+    prefix="/lots",
+    tags=["lots"],
+)
 
 @router.get(
     "",
