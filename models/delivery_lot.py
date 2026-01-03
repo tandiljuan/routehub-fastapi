@@ -91,6 +91,7 @@ class DeliveryLot(SQLModel, table=True):
     milestone: Milestone | None = Relationship()
     fleet: Fleet | None = Relationship()
     deliveries: list["DeliveryLotDelivery"] = Relationship(back_populates="lot", passive_deletes="all")
+    drivers: list["DeliveryLotDriver"] = Relationship(back_populates="lot", passive_deletes="all")
 
 class DeliveryLotDelivery(SQLModel, table=True):
     __tablename__ = "delivery_lot_delivery"
@@ -106,3 +107,6 @@ class DeliveryLotDriver(SQLModel, table=True):
 
     delivery_lot_id: int | None = Field(default=None, foreign_key="delivery_lot.id", primary_key=True)
     driver_id: int | None = Field(default=None, foreign_key="driver.id", primary_key=True)
+
+    lot: DeliveryLot = Relationship(back_populates="drivers")
+    driver: Driver = Relationship()
