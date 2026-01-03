@@ -1,186 +1,174 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
-import re
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Request,
+    Response,
+)
+from sqlmodel import select
+from models.database import Session as DbSession
+from models.vehicle import Vehicle
+from models.driver import (
+    Driver,
+    DriverCreate,
+    DriverResponse,
+    DriverUpdate,
+    DriverVehicle,
+)
 
-router = APIRouter(prefix="/drivers")
+router = APIRouter(
+    prefix="/drivers",
+    tags=["drivers"],
+)
 
-@router.get("")
-async def drivers_get(request: Request):
-    example = ''
+@router.get(
+    "",
+    response_model=list[DriverResponse],
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def fleets_get(db: DbSession):
+    response = []
+    drv_list = db.exec(select(Driver)).all()
+    for d in drv_list:
+        response.append(d.model_dump())
+    return response
 
-    if 'prefer' in request.headers:
-        match = re.match(r'example=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            example = match.group(1)
+@router.post(
+    "",
+    response_model=DriverResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+    status_code=201,
+)
+async def drivers_post(
+    request: Request,
+    response: Response,
+    db: DbSession,
+    post_data: DriverCreate,
+):
+    # Dump submitted data as dictionary
+    drv_dict = post_data.model_dump()
+    # Add Company ID to submitted data
+    drv_dict['company_id'] = 1
+    # Create drivel object from dictionary
+    drv_db = Driver.model_validate(drv_dict)
 
-    if 'empty' == example:
-        return []
-    elif 'list-1.0' == example:
-        return [
-            {
-                "id": 1,
-                "first_name": "John",
-                "last_name": "Doe",
-                "work_schedules": [
-                    "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-                ],
-                "start_point": "37.7749,-122.4194",
-                "work_areas": [
-                    [
-                        "37.7749,-122.4194",
-                        "37.7749,-122.4195",
-                        "37.7750,-122.4194"
-                    ]
-                ],
-                "vehicles": [
-                    {
-                        "vehicle_id": 1,
-                        "quantity": 2
-                    }
-                ]
-            }
-        ]
-    elif 'list-1.1' == example:
-        return [
-            {
-                "id": 1,
-                "first_name": "Jane",
-                "last_name": "Smith",
-                "work_schedules": [
-                    "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-                ],
-                "start_point": "37.7749,-122.4194",
-                "work_areas": [
-                    [
-                        "37.7749,-122.4194",
-                        "37.7749,-122.4195",
-                        "37.7750,-122.4194"
-                    ]
-                ],
-                "vehicles": [
-                    {
-                        "vehicle_id": 1,
-                        "quantity": 2
-                    }
-                ]
-            }
-        ]
+    # Save new Driver in the database
+    db.add(drv_db)
+    db.commit()
 
-    message = {"message": "Work In Progress"}
-    return JSONResponse(content=message, status_code=503)
+    # Create relations between Driver and Vehicles
+    post_vehicles = post_data.vehicles or []
+    for v in post_vehicles:
+        veh_id = int(v.id)
+        veh_qty = int(v.qty)
 
-@router.post("")
-async def drivers_post():
-    return {
-        "id": 1,
-        "first_name": "John",
-        "last_name": "Doe",
-        "work_schedules": [
-            "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-        ],
-        "start_point": "37.7749,-122.4194",
-        "work_areas": [
-            [
-                "37.7749,-122.4194",
-                "37.7749,-122.4195",
-                "37.7750,-122.4194"
-            ]
-        ],
-        "vehicles": [
-            {
-                "vehicle_id": 1,
-                "quantity": 2
-            }
-        ]
-    }
+        if veh_qty < 1:
+            continue
 
-@router.get("/{id}")
-async def drivers_id_get(id: int, request: Request):
-    key = ''
-    example = ''
+        veh_db = db.get(Vehicle, veh_id)
+        if veh_db:
+            link = DriverVehicle(
+                fleet=drv_db,
+                vehicle=veh_db,
+                quantity=veh_qty,
+            )
+            drv_db.vehicles.append(link)
+            db.add(drv_db)
+            db.commit()
 
-    if 'prefer' in request.headers:
-        match = re.match(r'(\w+)=([\w\.-]+)', request.headers.get("Prefer"))
-        if match:
-            key = match.group(1)
-            example = match.group(2)
+    # Set location header
+    drv_url = request.url_for("drivers_id_get", id=drv_db.id)
+    response.headers["location"] = f"{drv_url}"
 
-    if 'code' == key:
-        message = {"message": "..."}
-        return JSONResponse(content=message, status_code=int(example))
+    # Return (custom serialized) Driver
+    db.refresh(drv_db)
+    return drv_db.model_dump()
 
-    if 'driver-1.0' == example:
-        return {
-            "id": 1,
-            "first_name": "John",
-            "last_name": "Doe",
-            "work_schedules": [
-                "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-            ],
-            "start_point": "37.7749,-122.4194",
-            "work_areas": [
-                [
-                    "37.7749,-122.4194",
-                    "37.7749,-122.4195",
-                    "37.7750,-122.4194"
-                ]
-            ],
-            "vehicles": [
-                {
-                    "vehicle_id": 1,
-                    "quantity": 2
-                }
-            ]
-        }
-    elif 'driver-1.1' == example:
-        return {
-            "id": 1,
-            "first_name": "Jane",
-            "last_name": "Smith",
-            "work_schedules": [
-                "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-            ],
-            "start_point": "37.7749,-122.4194",
-            "work_areas": [
-                [
-                    "37.7749,-122.4194",
-                    "37.7749,-122.4195",
-                    "37.7750,-122.4194"
-                ]
-            ],
-            "vehicles": [
-                {
-                    "vehicle_id": 1,
-                    "quantity": 2
-                }
-            ]
-        }
+@router.get(
+    "/{id}",
+    name="drivers_id_get",
+    response_model=DriverResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def drivers_id_get(id: int, db: DbSession):
+    drv_db = db.get(Driver, id)
+    if not drv_db:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    return drv_db.model_dump()
 
-@router.patch("/{id}")
-async def drivers_id_patch(id: int):
-    return {
-        "id": 1,
-        "first_name": "Jane",
-        "last_name": "Smith",
-        "work_schedules": [
-            "DTSTART:20250101T120000Z\nDURATION:PT8H\nRRULE:FREQ=DAILY"
-        ],
-        "start_point": "37.7749,-122.4194",
-        "work_areas": [
-            [
-                "37.7749,-122.4194",
-                "37.7749,-122.4195",
-                "37.7750,-122.4194"
-            ]
-        ],
-        "vehicles": [
-            {
-                "vehicle_id": 1,
-                "quantity": 2
-            }
-        ]
-    }
+@router.patch(
+    "/{id}",
+    response_model=DriverResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def drivers_id_patch(
+    id: int,
+    db: DbSession,
+    patch_data: DriverUpdate,
+):
+    # Retrieve Driver
+    drv_db = db.get(Driver, id)
+    if not drv_db:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    # Dump submitted data as dictionary
+    drv_dict = patch_data.model_dump(exclude_unset=True)
+    # Add Company ID to submitted data
+    drv_dict['company_id'] = 1
+    # Update drivel object from dictionary
+    drv_db.sqlmodel_update(drv_dict)
+
+    db.add(drv_db)
+    db.commit()
+
+    # Update relations between Driver and Vehicles
+    patch_vehicles = patch_data.vehicles or []
+    for v in patch_vehicles:
+        veh_id = int(v.id)
+        veh_qty = int(v.qty)
+        exist = False
+
+        # Update existing relation
+        for link in drv_db.vehicles:
+            if link.vehicle_id == veh_id:
+                exist = True
+                if veh_qty != link.quantity:
+                    if veh_qty > 0:
+                        link.quantity = veh_qty
+                        db.add(link)
+                        db.commit()
+                    else:
+                        db.delete(link)
+                        db.commit()
+                break
+
+        if exist or veh_qty < 1:
+            continue
+
+        # Create new relation
+        veh_db = db.get(Vehicle, veh_id)
+        if veh_db:
+            link = DriverVehicle(
+                fleet=drv_db,
+                vehicle=veh_db,
+                quantity=veh_qty,
+            )
+            drv_db.vehicles.append(link)
+            db.add(drv_db)
+            db.commit()
+
+    # Return (custom serialized) Driver
+    db.refresh(drv_db)
+    return drv_db.model_dump()
 
 @router.delete("/{id}")
-async def drivers_id_delete(id: int):
-    return {"message": "Fleet Deleted"}
+async def drivers_id_delete(id: int, db: DbSession):
+    drv_db = db.get(Driver, id)
+    if not drv_db:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    db.delete(drv_db)
+    db.commit()
+    return {"code": 200, "message": "Driver Deleted"}
