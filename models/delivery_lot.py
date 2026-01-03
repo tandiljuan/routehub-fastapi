@@ -12,7 +12,10 @@ from .enum import (
     TimeUnit,
 )
 from .company import Company
-from .delivery import DeliveryResponse
+from .delivery import (
+    DeliveryResponse,
+    Delivery,
+)
 from .driver import DriverResponse
 from .fleet import (
     FleetResponse,
@@ -84,3 +87,9 @@ class DeliveryLot(SQLModel, table=True):
 
     milestone: Milestone | None = Relationship()
     fleet: Fleet | None = Relationship()
+
+class DeliveryLotDelivery(SQLModel, table=True):
+    __tablename__ = "delivery_lot_delivery"
+
+    delivery_lot_id: int | None = Field(default=None, foreign_key="delivery_lot.id", primary_key=True)
+    delivery_id: int | None = Field(default=None, foreign_key="delivery.id", primary_key=True)
