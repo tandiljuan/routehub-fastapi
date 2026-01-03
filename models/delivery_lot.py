@@ -1,4 +1,8 @@
-from pydantic import field_serializer
+from pydantic import (
+    SerializerFunctionWrapHandler as sfWrapHandler,
+    field_serializer,
+    model_serializer,
+)
 from sqlmodel import (
     Column,
     Enum,
@@ -133,6 +137,63 @@ class DeliveryLot(SQLModel, table=True):
                 lot["route_time_unit"] = rl["time_unit"]
         # Return sanitized dictionary
         return lot
+
+    @model_serializer(mode='wrap')
+    def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
+        # Output from default serializer
+        serialized = handler(self)
+        # Build 'milestone' attribute from relation
+        if self.milestone:
+            serialized['milestone'] = self.milestone.model_dump()
+        # Build 'fleet' attribute from relation
+        if self.fleet:
+            serialized['fleet'] = self.fleet.model_dump()
+        # Build 'deliveries' attribute from relations
+        if self.deliveries:
+            deliveries = []
+            for link in self.deliveries:
+                deliveries.append(link.delivery.model_dump())
+            serialized['deliveries'] = deliveries
+        # Build 'drivers' attribute from relations
+        if self.drivers:
+            drivers = []
+            for link in self.drivers:
+                drivers.append(link.driver.model_dump())
+            serialized['drivers'] = drivers
+        # Build 'vehicle_limits' attribute
+        limits = {}
+        if self.vehicle_volume_min:
+            limits['volume_min'] = self.vehicle_volume_min
+        if self.vehicle_volume_max:
+            limits['volume_max'] = self.vehicle_volume_max
+        if self.vehicle_capacity_min:
+            limits['capacity_min'] = self.vehicle_capacity_min
+        if self.vehicle_capacity_max:
+            limits['capacity_max'] = self.vehicle_capacity_max
+        if len(limits):
+            serialized['vehicle_limits'] = limits
+        # Build 'route_limits' attribute
+        limits = {}
+        if self.route_stops_min:
+            limits['stops_min'] = self.route_stops_min
+        if self.route_stops_max:
+            limits['stops_max'] = self.route_stops_max
+        if self.route_length_min:
+            limits['length_min'] = self.route_length_min
+        if self.route_length_max:
+            limits['length_max'] = self.route_length_max
+        if self.route_length_unit:
+            limits['length_unit'] = self.route_length_unit
+        if self.route_time_min:
+            limits['time_min'] = self.route_time_min
+        if self.route_time_max:
+            limits['time_max'] = self.route_time_max
+        if self.route_time_unit:
+            limits['time_unit'] = self.route_time_unit
+        if len(limits):
+            serialized['route_limits'] = limits
+        # Return (custom) serialized model
+        return serialized
 
 class DeliveryLotDelivery(SQLModel, table=True):
     __tablename__ = "delivery_lot_delivery"
