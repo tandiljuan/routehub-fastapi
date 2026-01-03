@@ -1,10 +1,16 @@
 from pydantic import field_serializer
-from sqlmodel import SQLModel
+from sqlmodel import (
+    Column,
+    Enum,
+    Field,
+    SQLModel,
+)
 from .enum import (
     DeliveryLotState,
     LengthUnit,
     TimeUnit,
 )
+from .company import Company
 from .delivery import DeliveryResponse
 from .driver import DriverResponse
 from .fleet import FleetResponse
@@ -47,3 +53,24 @@ class DeliveryLotResponse(DeliveryLotBase):
     @field_serializer('id', when_used='json')
     def serialize_id_to_str(self, id: int):
         return str(id)
+
+class DeliveryLot(SQLModel, table=True):
+    __tablename__ = "delivery_lot"
+
+    id: int | None = Field(default=None, primary_key=True)
+    company_id: int = Field(foreign_key="company.id")
+    state: DeliveryLotState = Field(sa_column=Column(Enum(DeliveryLotState)), default=DeliveryLotState.UNPROCESSED)
+    milestone_id: int | None = Field(default=None, foreign_key="milestone.id")
+    fleet_id: int | None = Field(default=None, foreign_key="fleet.id")
+    vehicle_volume_min: int | None = Field(default=None)
+    vehicle_volume_max: int | None = Field(default=None)
+    vehicle_capacity_min: int | None = Field(default=None)
+    vehicle_capacity_max: int | None = Field(default=None)
+    route_stops_min: int | None = Field(default=None)
+    route_stops_max: int | None = Field(default=None)
+    route_length_min: int | None = Field(default=None)
+    route_length_max: int | None = Field(default=None)
+    route_length_unit: LengthUnit | None = Field(default=None, sa_column=Column(Enum(LengthUnit)))
+    route_time_min: int | None = Field(default=None)
+    route_time_max: int | None = Field(default=None)
+    route_time_unit: TimeUnit | None = Field(default=None, sa_column=Column(Enum(TimeUnit)))
