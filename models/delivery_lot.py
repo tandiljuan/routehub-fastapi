@@ -93,6 +93,47 @@ class DeliveryLot(SQLModel, table=True):
     deliveries: list["DeliveryLotDelivery"] = Relationship(back_populates="lot", passive_deletes="all")
     drivers: list["DeliveryLotDriver"] = Relationship(back_populates="lot", passive_deletes="all")
 
+    def normalize_submitted_dict(lot: dict) -> dict:
+        # Parse IDs
+        if lot.get("company_id", False):
+            lot["company_id"] = int(lot["company_id"])
+        if lot.get("milestone_id", False):
+            lot["milestone_id"] = int(lot["milestone_id"])
+        if lot.get("fleet_id", False):
+            lot["fleet_id"] = int(lot["fleet_id"])
+        # Set vehicle limits values
+        if lot.get("vehicle_limits", False):
+            vl = lot["vehicle_limits"]
+            if vl.get("volume_min", False):
+                lot["vehicle_volume_min"] = vl["volume_min"]
+            if vl.get("volume_max", False):
+                lot["vehicle_volume_max"] = vl["volume_max"]
+            if vl.get("capacity_min", False):
+                lot["vehicle_capacity_min"] = vl["capacity_min"]
+            if vl.get("capacity_max", False):
+                lot["vehicle_capacity_max"] = vl["capacity_max"]
+        # Set route limits values
+        if lot.get("route_limits", False):
+            rl = lot["route_limits"]
+            if rl.get("stops_min", False):
+                lot["route_stops_min"] = rl["stops_min"]
+            if rl.get("stops_max", False):
+                lot["route_stops_max"] = rl["stops_max"]
+            if rl.get("length_min", False):
+                lot["route_length_min"] = rl["length_min"]
+            if rl.get("length_max", False):
+                lot["route_length_max"] = rl["length_max"]
+            if rl.get("length_unit", False):
+                lot["route_length_unit"] = rl["length_unit"]
+            if rl.get("time_min", False):
+                lot["route_time_min"] = rl["time_min"]
+            if rl.get("time_max", False):
+                lot["route_time_max"] = rl["time_max"]
+            if rl.get("time_unit", False):
+                lot["route_time_unit"] = rl["time_unit"]
+        # Return sanitized dictionary
+        return lot
+
 class DeliveryLotDelivery(SQLModel, table=True):
     __tablename__ = "delivery_lot_delivery"
 
