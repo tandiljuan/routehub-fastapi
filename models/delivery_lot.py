@@ -16,7 +16,10 @@ from .delivery import (
     DeliveryResponse,
     Delivery,
 )
-from .driver import DriverResponse
+from .driver import (
+    DriverResponse,
+    Driver,
+)
 from .fleet import (
     FleetResponse,
     Fleet,
@@ -97,3 +100,9 @@ class DeliveryLotDelivery(SQLModel, table=True):
 
     lot: DeliveryLot = Relationship(back_populates="deliveries")
     delivery: Delivery = Relationship()
+
+class DeliveryLotDriver(SQLModel, table=True):
+    __tablename__ = "delivery_lot_driver"
+
+    delivery_lot_id: int | None = Field(default=None, foreign_key="delivery_lot.id", primary_key=True)
+    driver_id: int | None = Field(default=None, foreign_key="driver.id", primary_key=True)
