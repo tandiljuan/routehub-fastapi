@@ -3,6 +3,7 @@ from sqlmodel import (
     Column,
     Enum,
     Field,
+    Relationship,
     SQLModel,
 )
 from .enum import (
@@ -14,7 +15,10 @@ from .company import Company
 from .delivery import DeliveryResponse
 from .driver import DriverResponse
 from .fleet import FleetResponse
-from .milestone import MilestoneResponse
+from .milestone import (
+    MilestoneResponse,
+    Milestone,
+)
 
 class VehicleLimits(SQLModel):
     volume_min: int | None = None
@@ -74,3 +78,5 @@ class DeliveryLot(SQLModel, table=True):
     route_time_min: int | None = Field(default=None)
     route_time_max: int | None = Field(default=None)
     route_time_unit: TimeUnit | None = Field(default=None, sa_column=Column(Enum(TimeUnit)))
+
+    milestone: Milestone | None = Relationship()
