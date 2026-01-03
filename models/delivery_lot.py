@@ -14,7 +14,10 @@ from .enum import (
 from .company import Company
 from .delivery import DeliveryResponse
 from .driver import DriverResponse
-from .fleet import FleetResponse
+from .fleet import (
+    FleetResponse,
+    Fleet,
+)
 from .milestone import (
     MilestoneResponse,
     Milestone,
@@ -80,3 +83,4 @@ class DeliveryLot(SQLModel, table=True):
     route_time_unit: TimeUnit | None = Field(default=None, sa_column=Column(Enum(TimeUnit)))
 
     milestone: Milestone | None = Relationship()
+    fleet: Fleet | None = Relationship()
