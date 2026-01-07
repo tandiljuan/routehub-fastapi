@@ -41,3 +41,11 @@ class Optimizer():
         r = requests.post(url, data=payload, headers=headers)
         rbody = json.loads(r.text)
         return rbody['session_id']
+
+    def get_draft_result(self, task_id: str) -> ResultSet:
+        url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize/{task_id}"
+        headers = {'api-key': self.auth} if self.auth else {}
+        r = requests.get(url, headers=headers)
+        rbody = json.loads(r.text)
+        result_set = ResultSet.model_validate(rbody)
+        return result_set
