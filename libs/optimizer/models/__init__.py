@@ -10,3 +10,9 @@ from .plan_settings import Preprocessing as PlanSettingsPreprocessing
 from .plan_vehicle import DeliveriesQuantity as PlanVehicleQuantity
 from .plan_vehicle import DistanceLimits as PlanVehicleDistance
 from .plan_vehicle import PlanVehicle
+from .result_route import ResultRoute
+from .result_set import ResultSet
+from .result_total import ResultTotal
+from .result_waypoint import ResultDimension
+from .result_waypoint import ResultPackage
+from .result_waypoint import ResultWaypoint
