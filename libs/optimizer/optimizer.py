@@ -1,6 +1,9 @@
 import json
 import requests
-from .models import PlanContext
+from .models import (
+    PlanContext,
+    ResultSet,
+)
 
 class Optimizer():
 
@@ -17,3 +20,14 @@ class Optimizer():
         r = requests.post(url, data=payload, headers=headers)
         rbody = json.loads(r.text)
         return rbody['session_id']
+
+    def get_plan_result(self, task_id: str) -> ResultSet:
+        url = f"{self.host}:{self.port}/route-optimizer-app/routes/{task_id}"
+        headers = {'api-key': self.auth} if self.auth else {}
+        r = requests.get(url, headers=headers)
+        rbody = {"status": "processing"}
+        if 200 == r.status_code:
+            rbody = json.loads(r.text)
+            rbody['status'] = "completed"
+        result_set = ResultSet.model_validate(rbody)
+        return result_set
