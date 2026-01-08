@@ -340,4 +340,7 @@ async def delivery_lots_id_plan_post(
 
 @router.get("/{id}/plan")
 async def delivery_lots_id_plan_get(id: int):
+    if not optimizer:
+        raise HTTPException(status_code=500)
+
     return {"state": DeliveryLotState.UNPROCESSED}
