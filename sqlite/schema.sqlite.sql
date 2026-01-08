@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS delivery_lot_driver (
 CREATE TABLE IF NOT EXISTS delivery_plan (
   id INTEGER PRIMARY KEY,
   delivery_lot_id INTEGER NOT NULL,
+  optimizer_id TEXT NOT NULL,
   FOREIGN KEY(delivery_lot_id) REFERENCES delivery_lot(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS delivery_path (
