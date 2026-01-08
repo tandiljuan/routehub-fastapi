@@ -3,6 +3,7 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from .delivery import Delivery
 from .delivery_lot import DeliveryLot
 from .driver import Driver
 from .milestone import Milestone
@@ -31,3 +32,10 @@ class DeliveryPath(SQLModel, table=True):
     milestone: Milestone = Relationship()
     vehicle: Vehicle = Relationship()
     driver: Driver = Relationship()
+
+class DeliveryPathDelivery(SQLModel, table=True):
+    __tablename__ = "delivery_path_delivery"
+
+    delivery_path_id: int | None = Field(default=None, foreign_key="delivery_path.id", primary_key=True)
+    delivery_id: int | None = Field(default=None, foreign_key="delivery.id", primary_key=True)
+    delivery_order: int
