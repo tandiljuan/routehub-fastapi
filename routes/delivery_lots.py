@@ -1,3 +1,4 @@
+import os
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -16,6 +17,20 @@ from models.delivery_lot import (
     DeliveryLotUpdate,
 )
 from models.driver import Driver
+from libs.optimizer import Optimizer
+
+OPTIMIZER_HOST = os.environ.get("OPTIMIZER_HOST")
+OPTIMIZER_PORT = os.environ.get("OPTIMIZER_PORT")
+OPTIMIZER_AUTH = os.environ.get("OPTIMIZER_AUTH")
+
+optimizer = None
+
+if OPTIMIZER_HOST and OPTIMIZER_PORT:
+    optimizer = Optimizer(
+        OPTIMIZER_HOST,
+        OPTIMIZER_PORT,
+        OPTIMIZER_AUTH,
+    )
 
 router = APIRouter(
     prefix="/lots",
