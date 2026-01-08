@@ -3,6 +3,7 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from .enum import DeliveryLotState
 from .delivery import (
     Delivery,
     DeliveryResponse,
@@ -26,6 +27,10 @@ class RouteResponse(SQLModel):
     deliveries: list[DeliveryResponse]
     vehicle: VehicleResponse | None = None
     driver: DriverResponse | None = None
+
+class DeliveryPlanResponse(SQLModel):
+    state: DeliveryLotState
+    routes: list[RouteResponse] | None = None
 
 class DeliveryPlan(SQLModel, table=True):
     __tablename__ = "delivery_plan"
