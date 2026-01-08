@@ -1,3 +1,7 @@
+from pydantic import (
+    SerializerFunctionWrapHandler as sfWrapHandler,
+    model_serializer,
+)
 from sqlmodel import (
     Field,
     Relationship,
@@ -41,6 +45,37 @@ class DeliveryPlan(SQLModel, table=True):
 
     lot: DeliveryLot = Relationship()
     paths: list["DeliveryPath"] = Relationship(back_populates="plan", passive_deletes="all")
+
+    @model_serializer(mode='wrap')
+    def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
+        # Output from default serializer
+        serialized = handler(self)
+        # Build 'state' attribute
+        serialized['state'] = self.lot.state
+        # Build 'routes' attribute from relations
+        if len(self.paths):
+            routes = []
+            for linkp in self.paths:
+                r = {}
+                # Build 'route.state' attribute
+                r['milestone'] = linkp.milestone.model_dump()
+                # Build 'route.deliveries' attribute
+                r['deliveries'] = []
+                for linkd in linkp.deliveries:
+                    d = linkd.delivery.model_dump()
+                    r['deliveries'].append(d)
+                # Build 'route.vehicle' attribute
+                if linkp.vehicle:
+                    v = linkp.vehicle.model_dump()
+                    r['vehicle'] = v
+                # Build 'route.driver' attribute
+                if linkp.driver:
+                    d = linkp.driver.model_dump()
+                    r['vehicle'] = d
+                routes.append(r)
+            serialized['routes'] = routes
+        # Return (custom) serialized model
+        return serialized
 
 class DeliveryPath(SQLModel, table=True):
     __tablename__ = "delivery_path"
