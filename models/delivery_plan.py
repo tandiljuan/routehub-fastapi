@@ -16,6 +16,7 @@ class DeliveryPlan(SQLModel, table=True):
     optimizer_id: str
 
     lot: DeliveryLot = Relationship()
+    paths: list["DeliveryPath"] = Relationship(back_populates="plan", passive_deletes="all")
 
 class DeliveryPath(SQLModel, table=True):
     __tablename__ = "delivery_path"
@@ -25,3 +26,5 @@ class DeliveryPath(SQLModel, table=True):
     milestone_id: int = Field(foreign_key="milestone.id")
     vehicle_id: int | None = Field(default=None, foreign_key="vehicle.id")
     driver_id: int | None = Field(default=None, foreign_key="driver.id")
+
+    plan: DeliveryPlan = Relationship()
