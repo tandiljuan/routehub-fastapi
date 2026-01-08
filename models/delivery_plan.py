@@ -32,6 +32,7 @@ class DeliveryPath(SQLModel, table=True):
     milestone: Milestone = Relationship()
     vehicle: Vehicle = Relationship()
     driver: Driver = Relationship()
+    deliveries: list["DeliveryPathDelivery"] = Relationship(back_populates="path", passive_deletes="all")
 
 class DeliveryPathDelivery(SQLModel, table=True):
     __tablename__ = "delivery_path_delivery"
@@ -39,3 +40,6 @@ class DeliveryPathDelivery(SQLModel, table=True):
     delivery_path_id: int | None = Field(default=None, foreign_key="delivery_path.id", primary_key=True)
     delivery_id: int | None = Field(default=None, foreign_key="delivery.id", primary_key=True)
     delivery_order: int
+
+    path: DeliveryPath = Relationship(back_populates="deliveries")
+    delivery: Delivery = Relationship()
