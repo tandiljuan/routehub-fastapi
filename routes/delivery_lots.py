@@ -24,6 +24,7 @@ from models.delivery_plan import (
     DeliveryPath,
     DeliveryPathDelivery,
     DeliveryPlan,
+    DeliveryPlanResponse,
 )
 from models.driver import Driver
 from libs.optimizer import Optimizer
@@ -342,7 +343,12 @@ async def delivery_lots_id_plan_post(
         "message": "Delivery plan queued for processing",
     }
 
-@router.get("/{id}/plan")
+@router.get(
+    "/{id}/plan",
+    response_model=DeliveryPlanResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
 async def delivery_lots_id_plan_get(
     id: int,
     db: DbSession,
