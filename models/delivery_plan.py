@@ -28,3 +28,4 @@ class DeliveryPath(SQLModel, table=True):
     driver_id: int | None = Field(default=None, foreign_key="driver.id")
 
     plan: DeliveryPlan = Relationship()
+    milestone: Milestone = Relationship()
