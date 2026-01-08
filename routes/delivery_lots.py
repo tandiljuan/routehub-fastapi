@@ -20,7 +20,11 @@ from models.delivery_lot import (
     DeliveryLotResponse,
     DeliveryLotUpdate,
 )
-from models.delivery_plan import DeliveryPlan
+from models.delivery_plan import (
+    DeliveryPath,
+    DeliveryPathDelivery,
+    DeliveryPlan,
+)
 from models.driver import Driver
 from libs.optimizer import Optimizer
 from libs.optimizer.models import (
@@ -361,5 +365,25 @@ async def delivery_lots_id_plan_get(
 
     if "completed" != plan_result.status:
         return {"state": DeliveryLotState.PROCESSING}
+
+    # Create paths (routes)
+    for r in plan_result.routes:
+        pth_db = DeliveryPath(
+            delivery_plan_id=plan_db.id,
+            milestone_id=lot_db.milestone.id,
+            vehicle_id=r.vehicle_type,
+        )
+        db.add(pth_db)
+        db.commit()
+        # Create relations between Path and Deliveries
+        for w in r.optimized_waypoints:
+            link = DeliveryPathDelivery(
+                delivery_path_id=pth_db.id,
+                delivery_id=w.packages[0].package_id,
+                delivery_order=w.order,
+            )
+            pth_db.deliveries.append(link)
+            db.add(pth_db)
+            db.commit()
 
     return {"state": lot_db.state}
