@@ -1,4 +1,7 @@
+import math
 import os
+import re
+from datetime import datetime
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -18,6 +21,19 @@ from models.delivery_lot import (
 )
 from models.driver import Driver
 from libs.optimizer import Optimizer
+from libs.optimizer.models import (
+    PlanAddress,
+    PlanClustering,
+    PlanContext,
+    PlanPackage,
+    PlanRebalance,
+    PlanRouting,
+    PlanSettings,
+    PlanSettingsPreprocessing,
+    PlanVehicle,
+    PlanVehicleDistance,
+    PlanVehicleQuantity,
+)
 
 OPTIMIZER_HOST = os.environ.get("OPTIMIZER_HOST")
 OPTIMIZER_PORT = os.environ.get("OPTIMIZER_PORT")
@@ -210,6 +226,93 @@ async def delivery_lots_id_plan_post(
     lot_db = db.get(DeliveryLot, id)
     if not lot_db:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
+
+    v_sum = 0
+    vehicles = []
+    for link in lot_db.fleet.vehicles:
+        v_sum += 1
+        pv = PlanVehicle(
+            type=str(link.vehicle.id),
+            quantity=link.quantity,
+            priority_vehicle=v_sum,
+            overflow_vehicle=(True if v_sum == 1 else False),
+        )
+
+        smin = lot_db.route_stops_min
+        smax = lot_db.route_stops_max
+        if smin or smax:
+            vq = PlanVehicleQuantity(
+                min=smin,
+                max=smax,
+            )
+            pv.deliveries_qty = vq
+
+        lmin = lot_db.route_length_min
+        lmax = lot_db.route_length_max
+        if smin or smax:
+            vl = PlanVehicleDistance(
+                min_km=lmin,
+                max_km=lmax,
+            )
+            pv.distance_limits = vl
+
+        vehicles.append(pv)
+
+    geo_rgx = re.compile(r'([+-]?[\d\.]+)')
+
+    a_sum = 0
+    addresses = []
+    for link in lot_db.deliveries:
+        a_sum += 1
+        dlv = link.delivery
+
+        p = PlanPackage(
+            package_id=str(dlv.id),
+        )
+        packages = [p]
+
+        geo = geo_rgx.findall(dlv.destination)
+
+        addresses.append(PlanAddress(
+            lat=float(geo[0]),
+            lng=float(geo[1]),
+            packages=packages,
+        ))
+
+    max_size_cluster = math.floor(a_sum / v_sum)
+    min_size_cluster = math.floor(max_size_cluster / 2)
+    clustering = PlanClustering(
+        min_size_cluster=min_size_cluster,
+        max_size_cluster=max_size_cluster,
+    )
+
+    routing = PlanRouting()
+    rebalance = PlanRebalance()
+
+    preprocessing = PlanSettingsPreprocessing(
+        preprocessing_batch_size = max_size_cluster * 3,
+    )
+
+    settings = PlanSettings(
+        preprocessing = preprocessing,
+    )
+
+    geo = geo_rgx.findall(lot_db.milestone.location)
+
+    plan = PlanContext(
+        date=datetime.today().strftime('%Y-%m-%d'),
+        origin_lat=float(geo[0]),
+        origin_lng=float(geo[1]),
+        tag=lot_db.milestone.name.strip().replace(' ', '_').upper(),
+        vehicles=vehicles,
+        addresses=addresses,
+        clustering=clustering,
+        routing=routing,
+        rebalance=rebalance,
+        settings=settings,
+    )
+
+    plan_id = optimizer.send_route_plan(plan=plan)
 
     return {"message": "Delivery plan queued for processing"}
 
