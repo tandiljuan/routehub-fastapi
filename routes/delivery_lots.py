@@ -386,4 +386,9 @@ async def delivery_lots_id_plan_get(
             db.add(pth_db)
             db.commit()
 
+    # Update Lot
+    lot_db.state=DeliveryLotState.PROCESSED
+    db.add(lot_db)
+    db.commit()
+
     return {"state": lot_db.state}
