@@ -19,6 +19,7 @@ from models.delivery_lot import (
     DeliveryLotResponse,
     DeliveryLotUpdate,
 )
+from models.delivery_plan import DeliveryPlan
 from models.driver import Driver
 from libs.optimizer import Optimizer
 from libs.optimizer.models import (
@@ -313,6 +314,15 @@ async def delivery_lots_id_plan_post(
     )
 
     plan_id = optimizer.send_route_plan(plan=plan)
+
+    plan_db = DeliveryPlan.model_validate({
+        "delivery_lot_id": lot_db.id,
+        "optimizer_id": plan_id,
+    })
+
+    # Create Plan
+    db.add(plan_db)
+    db.commit()
 
     return {"message": "Delivery plan queued for processing"}
 
