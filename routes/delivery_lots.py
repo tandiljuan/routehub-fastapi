@@ -340,14 +340,4 @@ async def delivery_lots_id_plan_post(
 
 @router.get("/{id}/plan")
 async def delivery_lots_id_plan_get(id: int):
-    return {
-        "delivery_lot_id": 1,
-        "delivery_paths": [
-            {
-                "milestone_id": 1,
-                "vehicle_id": 1,
-                "driver_id": 1,
-                "delivery_units": [1,2]
-            }
-        ]
-    }
+    return {"state": DeliveryLotState.UNPROCESSED}
