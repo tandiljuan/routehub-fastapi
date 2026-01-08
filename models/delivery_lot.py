@@ -101,6 +101,7 @@ class DeliveryLot(SQLModel, table=True):
     fleet: Fleet | None = Relationship()
     deliveries: list["DeliveryLotDelivery"] = Relationship(back_populates="lot", passive_deletes="all")
     drivers: list["DeliveryLotDriver"] = Relationship(back_populates="lot", passive_deletes="all")
+    plans: list["DeliveryPlan"] = Relationship(back_populates="lot", passive_deletes="all")
 
     def normalize_submitted_dict(lot: dict) -> dict:
         # Parse IDs
