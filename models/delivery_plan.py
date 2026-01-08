@@ -3,11 +3,29 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
-from .delivery import Delivery
+from .delivery import (
+    Delivery,
+    DeliveryResponse,
+)
 from .delivery_lot import DeliveryLot
-from .driver import Driver
-from .milestone import Milestone
-from .vehicle import Vehicle
+from .driver import (
+    Driver,
+    DriverResponse,
+)
+from .milestone import (
+    Milestone,
+    MilestoneResponse,
+)
+from .vehicle import (
+    Vehicle,
+    VehicleResponse,
+)
+
+class RouteResponse(SQLModel):
+    milestone: MilestoneResponse
+    deliveries: list[DeliveryResponse]
+    vehicle: VehicleResponse | None = None
+    driver: DriverResponse | None = None
 
 class DeliveryPlan(SQLModel, table=True):
     __tablename__ = "delivery_plan"
