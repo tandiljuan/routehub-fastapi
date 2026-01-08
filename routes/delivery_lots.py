@@ -367,10 +367,16 @@ async def delivery_lots_id_plan_get(
         raise HTTPException(status_code=404, detail="No routing plan has been created")
 
     plan_db = plans[-1]
+
+    if DeliveryLotState.PROCESSING != lot_db.state:
+        # Return (custom serialized) Plan
+        return plan_db.model_dump()
+
     plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
 
     if "completed" != plan_result.status:
-        return {"state": DeliveryLotState.PROCESSING}
+        # Return (custom serialized) Plan
+        return plan_db.model_dump()
 
     # Create paths (routes)
     for r in plan_result.routes:
@@ -397,4 +403,6 @@ async def delivery_lots_id_plan_get(
     db.add(lot_db)
     db.commit()
 
-    return {"state": lot_db.state}
+    # Return (custom serialized) Plan
+    db.refresh(plan_db)
+    return plan_db.model_dump()
