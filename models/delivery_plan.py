@@ -30,3 +30,4 @@ class DeliveryPath(SQLModel, table=True):
     plan: DeliveryPlan = Relationship()
     milestone: Milestone = Relationship()
     vehicle: Vehicle = Relationship()
+    driver: Driver = Relationship()
