@@ -200,7 +200,14 @@ async def delivery_lots_id_delete(
     return {"code": 200, "message": "Delivery lot Deleted"}
 
 @router.post("/{id}/plan")
-async def delivery_lots_id_plan_post(id: int):
+async def delivery_lots_id_plan_post(
+    id: int,
+    db: DbSession,
+):
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+
     return {"message": "Delivery plan queued for processing"}
 
 @router.get("/{id}/plan")
