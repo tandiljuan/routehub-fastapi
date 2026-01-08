@@ -217,7 +217,10 @@ async def delivery_lots_id_delete(
     db.commit()
     return {"code": 200, "message": "Delivery lot Deleted"}
 
-@router.post("/{id}/plan")
+@router.post(
+    "/{id}/plan",
+    status_code=202,
+)
 async def delivery_lots_id_plan_post(
     id: int,
     db: DbSession,
@@ -330,7 +333,10 @@ async def delivery_lots_id_plan_post(
     db.add(lot_db)
     db.commit()
 
-    return {"message": "Delivery plan queued for processing"}
+    return {
+        "code": 202,
+        "message": "Delivery plan queued for processing",
+    }
 
 @router.get("/{id}/plan")
 async def delivery_lots_id_plan_get(id: int):
