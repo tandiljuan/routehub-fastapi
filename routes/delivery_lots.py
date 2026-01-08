@@ -350,4 +350,10 @@ async def delivery_lots_id_plan_get(
     if not lot_db:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
-    return {"state": DeliveryLotState.UNPROCESSED}
+    plans = lot_db.plans
+
+    if not plans \
+    or DeliveryLotState.UNPROCESSED == lot_db.state:
+        raise HTTPException(status_code=404, detail="No routing plan has been created")
+
+    return {"state": lot_db.state}
