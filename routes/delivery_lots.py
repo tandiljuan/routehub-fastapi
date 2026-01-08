@@ -10,6 +10,7 @@ from fastapi import (
 )
 from sqlmodel import select
 from models.database import Session as DbSession
+from models.enum import DeliveryLotState
 from models.delivery import Delivery
 from models.delivery_lot import (
     DeliveryLot,
@@ -322,6 +323,11 @@ async def delivery_lots_id_plan_post(
 
     # Create Plan
     db.add(plan_db)
+    db.commit()
+
+    # Update Lot
+    lot_db.state=DeliveryLotState.PROCESSING
+    db.add(lot_db)
     db.commit()
 
     return {"message": "Delivery plan queued for processing"}
