@@ -356,4 +356,10 @@ async def delivery_lots_id_plan_get(
     or DeliveryLotState.UNPROCESSED == lot_db.state:
         raise HTTPException(status_code=404, detail="No routing plan has been created")
 
+    plan_db = plans[-1]
+    plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
+
+    if "completed" != plan_result.status:
+        return {"state": DeliveryLotState.PROCESSING}
+
     return {"state": lot_db.state}
