@@ -18,14 +18,25 @@ class Optimizer():
         payload = json.dumps(payload)
         url = f"{self.host}:{self.port}/route-optimizer-app/routes"
         headers = {'api-key': self.auth} if self.auth else {}
+        print(f">>> send_route_plan")
+        print(f">>> URL: {url}")
+        print(f">>> HEADERS: {headers}")
+        print(f">>> PAYLOAD: {payload}")
         r = requests.post(url, data=payload, headers=headers)
+        print(f">>> STATUS: {r.status_code}")
+        print(f">>> RESULT: {r.text}")
         rbody = json.loads(r.text)
         return rbody['session_id']
 
     def get_plan_result(self, task_id: str) -> ResultSet:
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/{task_id}"
         headers = {'api-key': self.auth} if self.auth else {}
+        print(f">>> get_plan_result")
+        print(f">>> URL: {url}")
+        print(f">>> HEADERS: {headers}")
         r = requests.get(url, headers=headers)
+        print(f">>> STATUS: {r.status_code}")
+        print(f">>> RESULT: {r.text}")
         rbody = {"status": "processing"}
         if 200 == r.status_code:
             rbody = json.loads(r.text)
@@ -38,14 +49,25 @@ class Optimizer():
         payload = json.dumps(payload)
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize"
         headers = {'api-key': self.auth} if self.auth else {}
+        print(f">>> send_route_draft")
+        print(f">>> URL: {url}")
+        print(f">>> HEADERS: {headers}")
+        print(f">>> PAYLOAD: {payload}")
         r = requests.post(url, data=payload, headers=headers)
+        print(f">>> STATUS: {r.status_code}")
+        print(f">>> RESULT: {r.text}")
         rbody = json.loads(r.text)
         return rbody['session_id']
 
     def get_draft_result(self, task_id: str) -> ResultSet:
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize/{task_id}"
         headers = {'api-key': self.auth} if self.auth else {}
+        print(f">>> get_draft_result")
+        print(f">>> URL: {url}")
+        print(f">>> HEADERS: {headers}")
         r = requests.get(url, headers=headers)
+        print(f">>> STATUS: {r.status_code}")
+        print(f">>> RESULT: {r.text}")
         rbody = {"status": "processing"}
         if 200 == r.status_code:
             rbody = json.loads(r.text)
