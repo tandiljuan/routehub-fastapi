@@ -17,8 +17,13 @@ class Optimizer():
         payload = plan.model_dump(serialize_as_any=True)
         payload = json.dumps(payload)
         url = f"{self.host}:{self.port}/route-optimizer-app/routes"
+        print(f">>> send_route_plan")
+        print(f">>> URL: {url}")
         headers = {'api-key': self.auth} if self.auth else {}
+        print(f">>> HEADERS: {headers}")
+        print(f">>> PAYLOAD: {payload}")
         r = requests.post(url, data=payload, headers=headers)
+        print(f">>> RESULT: {r.text}")
         rbody = json.loads(r.text)
         return rbody['session_id']
 
@@ -26,6 +31,9 @@ class Optimizer():
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/{task_id}"
         headers = {'api-key': self.auth} if self.auth else {}
         r = requests.get(url, headers=headers)
+        print(f">>> get_plan_result")
+        print(f">>> STATUS: {r.status_code}")
+        print(f">>> RESULT: {r.text}")
         rbody = {"status": "processing"}
         if 200 == r.status_code:
             rbody = json.loads(r.text)
