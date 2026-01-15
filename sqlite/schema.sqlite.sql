@@ -2,13 +2,19 @@ CREATE TABLE IF NOT EXISTS tenant (
   id INTEGER PRIMARY KEY,
   alias TEXT NOT NULL UNIQUE
 );
+CREATE TABLE IF NOT EXISTS tenant_user (
+  id INTEGER PRIMARY KEY,
+  tenant_id INTEGER NOT NULL,
+  alias TEXT NOT NULL,
+  FOREIGN KEY(tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS company (
   id INTEGER PRIMARY KEY,
   tenant_id INTEGER NOT NULL,
   alias TEXT NOT NULL,
   FOREIGN KEY(tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
-CREATE TABLE IF NOT EXISTS user (
+CREATE TABLE IF NOT EXISTS company_user (
   id INTEGER PRIMARY KEY,
   company_id INTEGER NOT NULL,
   alias TEXT NOT NULL,
@@ -148,8 +154,9 @@ CREATE TABLE IF NOT EXISTS delivery_path_delivery (
   FOREIGN KEY(delivery_path_id) REFERENCES delivery_path(id) ON DELETE CASCADE,
   FOREIGN KEY(delivery_id) REFERENCES delivery(id) ON DELETE CASCADE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS _a9741973efeffd2e3288e0782559bdcb ON tenant_user (tenant_id, alias);
 CREATE UNIQUE INDEX IF NOT EXISTS _e604e142ca8f4f9586f201ceb6481986 ON company (tenant_id, alias);
-CREATE UNIQUE INDEX IF NOT EXISTS _e0b2f9c468404a16862948a2bc8d4517 ON user (company_id, alias);
+CREATE UNIQUE INDEX IF NOT EXISTS _e0b2f9c468404a16862948a2bc8d4517 ON company_user (company_id, alias);
 CREATE UNIQUE INDEX IF NOT EXISTS _94be50f2d82842b08e0c5ed26321af08 ON fleet_vehicle (fleet_id, vehicle_id);
 CREATE UNIQUE INDEX IF NOT EXISTS _a1ae650c77e14e7e900731e4d9e6eb61 ON driver_vehicle (driver_id, vehicle_id);
 CREATE UNIQUE INDEX IF NOT EXISTS _472616e1f3c24ef0a0d1770995b14dbe ON delivery_lot_delivery (delivery_lot_id, delivery_id);
