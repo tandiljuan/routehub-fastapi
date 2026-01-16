@@ -16,5 +16,6 @@ __pycache__
 .dockerignore
 .editorconfig
 .gitignore
+docker-compose.*
 Dockerfile
 README.md

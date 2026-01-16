@@ -151,3 +151,4 @@ tags
 # SQLite
 *.sqlite
 *.db
+docker-compose.env*
