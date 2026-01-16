@@ -1,0 +1,20 @@
+# https://docs.docker.com/build/concepts/context/#dockerignore-files
+
+# Python
+# ------
+
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+
+# Project
+# -------
+
+.git
+.dockerignore
+.editorconfig
+.gitignore
+Dockerfile
+README.md
