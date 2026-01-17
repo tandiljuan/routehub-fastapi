@@ -11,19 +11,18 @@ from routes import delivery_lots
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "PRD")
 
-if 'LCL' == ENVIRONMENT.upper():
-    app = FastAPI(
-        swagger_ui_parameters =  {
-            # Make the operations in the docs UI closed by default
-            "docExpansion": "none",
-        },
-    )
-else:
-    app = FastAPI(
-        docs_url = None,    # Disables Swagger UI
-        redoc_url = None,   # Disables ReDoc
-        openapi_url = None, # Disables the OpenAPI JSON schema
-    )
+IS_LCL = True if 'LCL' == ENVIRONMENT.upper() else False
+
+app = FastAPI(
+    docs_url = "/docs" if IS_LCL else None,
+    redoc_url = "/redoc" if IS_LCL else None,
+    openapi_url = "/openapi.json" if IS_LCL else None,
+    title = "RouteHub",
+    swagger_ui_parameters =  {
+        # Make the operations in the docs UI closed by default
+        "docExpansion": "none",
+    },
+)
 
 app.include_router(vehicles.router)
 app.include_router(fleets.router)
