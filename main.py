@@ -1,7 +1,9 @@
 import os
+from fastapi import Depends
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from libs.authorization import authorization as auth
 from routes import vehicles
 from routes import fleets
 from routes import drivers
@@ -22,6 +24,7 @@ app = FastAPI(
         # Make the operations in the docs UI closed by default
         "docExpansion": "none",
     },
+    dependencies=[Depends(auth)],
 )
 
 app.include_router(vehicles.router)
