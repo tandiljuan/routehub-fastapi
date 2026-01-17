@@ -89,3 +89,38 @@ OPTIMIZER_PORT=3005 \
 OPTIMIZER_AUTH=example \
 fastapi dev --host 0.0.0.0 --port 3000 main.py
 ```
+
+
+Docker
+------
+
+Containers can be used to create a reproducible and isolated environment in which to run the REST API server. The `Dockerfile` and `.dockerignore` files detail the steps required to create the image. We will use [Docker](https://github.com/docker) to build the image with the following command:
+
+```bash
+docker build --tag 'routehub/api' .
+```
+
+Once the build process finishes, run the command below to remove any intermediate images.
+
+```bash
+docker image prune --force --filter label=stage=rh-setup
+```
+
+At this point the image is ready for use. However, the REST API requires a database. For a local development environment, an SQLite database can be used. Check the [dbschem](https://github.com/tandiljuan/routehub-dbschem) project for instructions on how to create and set up the database.
+
+Assuming the database is located at `/path/to/sqlite.db`, the following command will run the container and expose the service on port `8000`.
+
+```bash
+docker run --rm -it \
+  --name "routehub-api" \
+  --volume "/path/to/sqlite.db:/opt/routehub.db" \
+  --env ENVIRONMENT=LCL \
+  --env RDBMS_URL="sqlite:////opt/routehub.db" \
+  --env OPTIMIZER_HOST="http://localhost" \
+  --env OPTIMIZER_PORT=3005 \
+  --env OPTIMIZER_AUTH=example \
+  --publish 8000:80 \
+  routehub/api
+```
+
+You can check the automatically generated OpenAPI documentation page by navigating to [http://localhost:8000/docs](http://localhost:8000/docs) and test the service from there.
