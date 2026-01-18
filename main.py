@@ -10,6 +10,7 @@ from routes import drivers
 from routes import milestones
 from routes import deliveries
 from routes import delivery_lots
+from routes import fallback
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "PRD")
 
@@ -33,6 +34,7 @@ app.include_router(drivers.router)
 app.include_router(milestones.router)
 app.include_router(deliveries.router)
 app.include_router(delivery_lots.router)
+app.include_router(fallback.router)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
