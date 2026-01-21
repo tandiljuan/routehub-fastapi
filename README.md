@@ -58,6 +58,7 @@ source .venv/bin/activate
 Now you can start the "development" HTTP server. Below is a list of environment variables accepted by the application.
 
 * `ENVIRONMENT`: Specify if you are starting the server locally (`LCL`) or in production (`PRD`).
+* `BEARER_TOKEN`: The Bearer token required to authorize API usage.
 * `RDBMS_URL`: Configures the relational database management system.
 * `OPTIMIZER_HOST`: Sets the optimizer service host.
 * `OPTIMIZER_PORT`: Sets the optimizer service port.
@@ -67,6 +68,7 @@ Next, is an example of the command to start the development server.
 
 ```bash
 ENVIRONMENT=LCL \
+BEARER_TOKEN=1234 \
 RDBMS_URL=sqlite:///sqlite/routehub.db \
 OPTIMIZER_HOST=http://localhost \
 OPTIMIZER_PORT=3005 \
@@ -80,6 +82,7 @@ We can change the host and port using the `--port` and `--host` parameters, as s
 
 ```bash
 ENVIRONMENT=LCL \
+BEARER_TOKEN=1234 \
 RDBMS_URL=sqlite:///sqlite/routehub.db \
 OPTIMIZER_HOST=http://localhost \
 OPTIMIZER_PORT=3005 \
