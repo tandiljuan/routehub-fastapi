@@ -1,3 +1,7 @@
+import math
+import os
+import re
+from datetime import datetime
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -6,6 +10,7 @@ from fastapi import (
 )
 from sqlmodel import select
 from models.database import Session as DbSession
+from models.enum import DeliveryLotState
 from models.delivery import Delivery
 from models.delivery_lot import (
     DeliveryLot,
@@ -15,7 +20,40 @@ from models.delivery_lot import (
     DeliveryLotResponse,
     DeliveryLotUpdate,
 )
+from models.delivery_plan import (
+    DeliveryPath,
+    DeliveryPathDelivery,
+    DeliveryPlan,
+    DeliveryPlanResponse,
+)
 from models.driver import Driver
+from libs.optimizer import Optimizer
+from libs.optimizer.models import (
+    PlanAddress,
+    PlanClustering,
+    PlanContext,
+    PlanPackage,
+    PlanRebalance,
+    PlanRouting,
+    PlanSettings,
+    PlanSettingsPreprocessing,
+    PlanVehicle,
+    PlanVehicleDistance,
+    PlanVehicleQuantity,
+)
+
+OPTIMIZER_HOST = os.environ.get("OPTIMIZER_HOST")
+OPTIMIZER_PORT = os.environ.get("OPTIMIZER_PORT")
+OPTIMIZER_AUTH = os.environ.get("OPTIMIZER_AUTH")
+
+optimizer = None
+
+if OPTIMIZER_HOST and OPTIMIZER_PORT:
+    optimizer = Optimizer(
+        OPTIMIZER_HOST,
+        OPTIMIZER_PORT,
+        OPTIMIZER_AUTH,
+    )
 
 router = APIRouter(
     prefix="/lots",
@@ -184,20 +222,187 @@ async def delivery_lots_id_delete(
     db.commit()
     return {"code": 200, "message": "Delivery lot Deleted"}
 
-@router.post("/{id}/plan")
-async def delivery_lots_id_plan_post(id: int):
-    return {"message": "Delivery plan queued for processing"}
+@router.post(
+    "/{id}/plan",
+    status_code=202,
+)
+async def delivery_lots_id_plan_post(
+    id: int,
+    db: DbSession,
+):
+    if not optimizer:
+        raise HTTPException(status_code=500)
 
-@router.get("/{id}/plan")
-async def delivery_lots_id_plan_get(id: int):
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+
+    v_sum = 0
+    vehicles = []
+    for link in lot_db.fleet.vehicles:
+        v_sum += 1
+        pv = PlanVehicle(
+            type=str(link.vehicle.id),
+            quantity=link.quantity,
+            priority_vehicle=v_sum,
+            overflow_vehicle=(True if v_sum == 1 else False),
+        )
+
+        smin = lot_db.route_stops_min
+        smax = lot_db.route_stops_max
+        if smin or smax:
+            vq = PlanVehicleQuantity(
+                min=smin,
+                max=smax,
+            )
+            pv.deliveries_qty = vq
+
+        lmin = lot_db.route_length_min
+        lmax = lot_db.route_length_max
+        if smin or smax:
+            vl = PlanVehicleDistance(
+                min_km=lmin,
+                max_km=lmax,
+            )
+            pv.distance_limits = vl
+
+        vehicles.append(pv)
+
+    geo_rgx = re.compile(r'([+-]?[\d\.]+)')
+
+    a_sum = 0
+    addresses = []
+    for link in lot_db.deliveries:
+        a_sum += 1
+        dlv = link.delivery
+
+        p = PlanPackage(
+            package_id=str(dlv.id),
+        )
+        packages = [p]
+
+        geo = geo_rgx.findall(dlv.destination)
+
+        addresses.append(PlanAddress(
+            lat=float(geo[0]),
+            lng=float(geo[1]),
+            packages=packages,
+        ))
+
+    max_size_cluster = math.floor(a_sum / v_sum)
+    min_size_cluster = math.floor(max_size_cluster / 2)
+    clustering = PlanClustering(
+        min_size_cluster=min_size_cluster,
+        max_size_cluster=max_size_cluster,
+    )
+
+    routing = PlanRouting()
+    rebalance = PlanRebalance()
+
+    preprocessing = PlanSettingsPreprocessing(
+        preprocessing_batch_size = max_size_cluster * 3,
+    )
+
+    settings = PlanSettings(
+        preprocessing = preprocessing,
+    )
+
+    geo = geo_rgx.findall(lot_db.milestone.location)
+
+    plan = PlanContext(
+        date=datetime.today().strftime('%Y-%m-%d'),
+        origin_lat=float(geo[0]),
+        origin_lng=float(geo[1]),
+        tag=lot_db.milestone.name.strip().replace(' ', '_').upper(),
+        vehicles=vehicles,
+        addresses=addresses,
+        clustering=clustering,
+        routing=routing,
+        rebalance=rebalance,
+        settings=settings,
+    )
+
+    plan_id = optimizer.send_route_plan(plan=plan)
+
+    plan_db = DeliveryPlan.model_validate({
+        "delivery_lot_id": lot_db.id,
+        "optimizer_id": plan_id,
+    })
+
+    # Create Plan
+    db.add(plan_db)
+    db.commit()
+
+    # Update Lot
+    lot_db.state=DeliveryLotState.PROCESSING
+    db.add(lot_db)
+    db.commit()
+
     return {
-        "delivery_lot_id": 1,
-        "delivery_paths": [
-            {
-                "milestone_id": 1,
-                "vehicle_id": 1,
-                "driver_id": 1,
-                "delivery_units": [1,2]
-            }
-        ]
+        "code": 202,
+        "message": "Delivery plan queued for processing",
     }
+
+@router.get(
+    "/{id}/plan",
+    response_model=DeliveryPlanResponse,
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+)
+async def delivery_lots_id_plan_get(
+    id: int,
+    db: DbSession,
+):
+    if not optimizer:
+        raise HTTPException(status_code=500)
+
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+
+    plans = lot_db.plans
+
+    if not plans \
+    or DeliveryLotState.UNPROCESSED == lot_db.state:
+        raise HTTPException(status_code=404, detail="No routing plan has been created")
+
+    plan_db = plans[-1]
+
+    if DeliveryLotState.PROCESSING != lot_db.state:
+        # Return (custom serialized) Plan
+        return plan_db.model_dump()
+
+    plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
+
+    if "completed" != plan_result.status:
+        # Return (custom serialized) Plan
+        return plan_db.model_dump()
+
+    # Create paths (routes)
+    for r in plan_result.routes:
+        pth_db = DeliveryPath(
+            delivery_plan_id=plan_db.id,
+            milestone_id=lot_db.milestone.id,
+            vehicle_id=r.vehicle_type,
+        )
+        db.add(pth_db)
+        db.commit()
+        # Create relations between Path and Deliveries
+        for w in r.optimized_waypoints:
+            link = DeliveryPathDelivery(
+                delivery_path_id=pth_db.id,
+                delivery_id=w.packages[0].package_id,
+                delivery_order=w.order,
+            )
+            pth_db.deliveries.append(link)
+            db.add(pth_db)
+            db.commit()
+
+    # Update Lot
+    lot_db.state=DeliveryLotState.PROCESSED
+    db.add(lot_db)
+    db.commit()
+
+    # Return (custom serialized) Plan
+    db.refresh(plan_db)
+    return plan_db.model_dump()
