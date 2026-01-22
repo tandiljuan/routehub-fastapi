@@ -27,6 +27,7 @@ from .vehicle import (
 )
 
 class RouteResponse(SQLModel):
+    id: str
     milestone: MilestoneResponse
     deliveries: list[DeliveryResponse]
     vehicle: VehicleResponse | None = None
@@ -56,7 +57,7 @@ class DeliveryPlan(SQLModel, table=True):
         if len(self.paths):
             routes = []
             for linkp in self.paths:
-                r = {}
+                r = {'id': str(linkp.id)}
                 # Build 'route.state' attribute
                 r['milestone'] = linkp.milestone.model_dump()
                 # Build 'route.deliveries' attribute
