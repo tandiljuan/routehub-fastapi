@@ -37,6 +37,10 @@ class DeliveryPlanResponse(SQLModel):
     state: DeliveryLotState
     routes: list[RouteResponse] | None = None
 
+class DeliveryRouteUpdate(SQLModel):
+    id: str
+    deliveries: list[str]
+
 class DeliveryPlan(SQLModel, table=True):
     __tablename__ = "delivery_plan"
 
