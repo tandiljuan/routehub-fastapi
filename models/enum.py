@@ -77,5 +77,6 @@ class SpecialHandling(str, enum.Enum):
 class DeliveryLotState(str, enum.Enum):
     UNPROCESSED = "UNPROCESSED"
     PROCESSING = "PROCESSING"
+    OPTIMIZING = "OPTIMIZING"
     PROCESSED = "PROCESSED"
     CANCELED = "CANCELED"
