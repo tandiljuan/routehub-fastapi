@@ -25,6 +25,7 @@ from models.delivery_plan import (
     DeliveryPathDelivery,
     DeliveryPlan,
     DeliveryPlanResponse,
+    DeliveryRouteUpdate,
 )
 from models.driver import Driver
 from libs.optimizer import Optimizer
@@ -408,3 +409,27 @@ async def delivery_lots_id_plan_get(
     # Return (custom serialized) Plan
     db.refresh(plan_db)
     return plan_db.model_dump()
+
+@router.patch(
+    "/{id}/plan",
+    status_code=202,
+)
+async def delivery_lots_id_plan_patch(
+    id: int,
+    db: DbSession,
+    patch_data: list[DeliveryRouteUpdate],
+):
+    if not optimizer:
+        raise HTTPException(status_code=500)
+
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+
+    if DeliveryLotState.PROCESSED != lot_db.state:
+        raise HTTPException(status_code=409, detail="The plan must be 'PROCESSED' to be updated")
+
+    return {
+        "code": 202,
+        "message": "Routes queued for optimization",
+    }
