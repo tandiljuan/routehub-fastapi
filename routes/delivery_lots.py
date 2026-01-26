@@ -30,6 +30,11 @@ from models.delivery_plan import (
 from models.driver import Driver
 from libs.optimizer import Optimizer
 from libs.optimizer.models import (
+    DraftPackage,
+    DraftRoute,
+    DraftRouting,
+    DraftSet,
+    DraftWaypoint,
     PlanAddress,
     PlanClustering,
     PlanContext,
@@ -428,6 +433,54 @@ async def delivery_lots_id_plan_patch(
 
     if DeliveryLotState.PROCESSED != lot_db.state:
         raise HTTPException(status_code=409, detail="The plan must be 'PROCESSED' to be updated")
+
+    # Change Lot State
+    lot_db.state=DeliveryLotState.OPTIMIZING
+    db.add(lot_db)
+    db.commit()
+
+    geo_rgx = re.compile(r'([+-]?[\d\.]+)')
+
+    routes = []
+    for route in patch_data:
+        waypoints = []
+        for dlv_id in route.deliveries:
+            dlv_db = db.get(Delivery, dlv_id)
+            if not dlv_db:
+                raise HTTPException(status_code=404, detail=f"Delivery not found (id: '{dlv_id}')")
+            p = DraftPackage(
+                package_id=str(dlv_db.id),
+            )
+            packages = [p]
+            geo = geo_rgx.findall(dlv_db.destination)
+            waypoints.append(DraftWaypoint(
+                lat=float(geo[0]),
+                lng=float(geo[1]),
+                packages=packages,
+            ))
+        routes.append(DraftRoute(
+            route_id=str(route.id),
+            waypoints=waypoints,
+        ))
+
+    geo = geo_rgx.findall(lot_db.milestone.location)
+
+    draft = DraftSet(
+        origin_lat=float(geo[0]),
+        origin_lng=float(geo[1]),
+        tag=lot_db.milestone.name.strip().replace(' ', '_').upper(),
+        optimization_params=DraftRouting(),
+        routes=routes,
+    )
+
+    draft_id = optimizer.send_route_draft(draft=draft)
+
+    plan_db = lot_db.plans[-1]
+    plan_db.optimizer_id = draft_id
+
+    # Update Plan
+    db.add(plan_db)
+    db.commit()
 
     return {
         "code": 202,
