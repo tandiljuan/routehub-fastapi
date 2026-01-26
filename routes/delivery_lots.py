@@ -291,7 +291,7 @@ async def delivery_lots_id_plan_post(
             packages=packages,
         ))
 
-    max_size_cluster = math.floor(a_sum / v_sum)
+    max_size_cluster = math.ceil(a_sum / v_sum)
     min_size_cluster = math.floor(max_size_cluster / 2)
     clustering = PlanClustering(
         min_size_cluster=min_size_cluster,
