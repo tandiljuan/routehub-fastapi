@@ -238,14 +238,16 @@ async def delivery_lots_id_plan_post(
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
     v_sum = 0
+    priority = 0
     vehicles = []
     for link in lot_db.fleet.vehicles:
-        v_sum += 1
+        priority += 1
+        v_sum += link.quantity
         pv = PlanVehicle(
             type=str(link.vehicle.id),
             quantity=link.quantity,
-            priority_vehicle=v_sum,
-            overflow_vehicle=(True if v_sum == 1 else False),
+            priority_vehicle=priority,
+            overflow_vehicle=(True if 1 == priority else False),
         )
 
         smin = lot_db.route_stops_min
