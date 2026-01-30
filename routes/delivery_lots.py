@@ -403,6 +403,49 @@ async def delivery_lots_id_plan_get(
                 db.add(pth_db)
                 db.commit()
 
+    elif DeliveryLotState.OPTIMIZING == lot_db.state:
+        draft_result = optimizer.get_draft_result(task_id=plan_db.optimizer_id)
+
+        if "completed" != draft_result.status:
+            # Return (custom serialized) Plan
+            return plan_db.model_dump()
+
+        query = select(DeliveryPath, DeliveryPathDelivery)
+        query = query.join(DeliveryPathDelivery)
+
+        for route in draft_result.routes:
+            # Loop new points and remove old relations
+            for waypoint in route.optimized_waypoints:
+                dlv_id = waypoint.packages[0].package_id
+                dlv_qry = query.where(
+                    DeliveryPath.delivery_plan_id == plan_db.id,
+                    DeliveryPathDelivery.delivery_id == dlv_id,
+                )
+                link = db.exec(dlv_qry).first()
+                if None != link:
+                    db.delete(link[-1])
+                    db.commit()
+
+            pth_db = db.get(DeliveryPath, route.route_id)
+
+            # Loop old points and remove old relations
+            for link in pth_db.deliveries:
+                db.delete(link)
+                db.commit()
+
+            # Loop new points and create new relations
+            for waypoint in route.optimized_waypoints:
+                dlv_id = waypoint.packages[0].package_id
+                dlv_order = waypoint.order
+                link = DeliveryPathDelivery(
+                    delivery_path_id=pth_db.id,
+                    delivery_id=dlv_id,
+                    delivery_order=dlv_order,
+                )
+                pth_db.deliveries.append(link)
+                db.add(pth_db)
+                db.commit()
+
     else:
         # Return (custom serialized) Plan
         return plan_db.model_dump()
