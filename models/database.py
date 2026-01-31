@@ -9,8 +9,6 @@ from sqlmodel import (
 )
 
 RDBMS_URL = os.environ.get("RDBMS_URL")
-RDBMS_USR = os.environ.get("RDBMS_USR")
-RDBMS_PWD = os.environ.get("RDBMS_PWD")
 RDBMS_LOG = str(os.environ.get("RDBMS_LOG")).lower()
 RDBMS_LOG = True if RDBMS_LOG not in ["", "0", "off", "false", "null", "none"] else False
 
