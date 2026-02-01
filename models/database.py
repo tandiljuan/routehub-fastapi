@@ -11,6 +11,8 @@ from sqlmodel import (
 RDBMS_URL = os.environ.get("RDBMS_URL")
 RDBMS_USR = os.environ.get("RDBMS_USR")
 RDBMS_PWD = os.environ.get("RDBMS_PWD")
+RDBMS_LOG = str(os.environ.get("RDBMS_LOG")).lower()
+RDBMS_LOG = True if RDBMS_LOG not in ["", "0", "off", "false", "null", "none"] else False
 
 IS_SQLITE = True if "sqlite" in RDBMS_URL else False
 
@@ -21,7 +23,7 @@ connect_args = {"check_same_thread": False} if IS_SQLITE else {}
 # Set `echo=True` to display SQL queries in the console.
 engine = create_engine(
     RDBMS_URL,
-    echo=True,
+    echo=RDBMS_LOG,
     connect_args=connect_args,
 )
 
