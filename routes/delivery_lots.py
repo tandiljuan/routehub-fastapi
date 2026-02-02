@@ -238,14 +238,16 @@ async def delivery_lots_id_plan_post(
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
     v_sum = 0
+    priority = 0
     vehicles = []
     for link in lot_db.fleet.vehicles:
-        v_sum += 1
+        priority += 1
+        v_sum += link.quantity
         pv = PlanVehicle(
             type=str(link.vehicle.id),
             quantity=link.quantity,
-            priority_vehicle=v_sum,
-            overflow_vehicle=(True if v_sum == 1 else False),
+            priority_vehicle=priority,
+            overflow_vehicle=(True if 1 == priority else False),
         )
 
         smin = lot_db.route_stops_min
@@ -289,7 +291,7 @@ async def delivery_lots_id_plan_post(
             packages=packages,
         ))
 
-    max_size_cluster = math.floor(a_sum / v_sum)
+    max_size_cluster = math.ceil(a_sum / v_sum)
     min_size_cluster = math.floor(max_size_cluster / 2)
     clustering = PlanClustering(
         min_size_cluster=min_size_cluster,

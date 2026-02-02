@@ -17,6 +17,7 @@ router = APIRouter()
         "PATCH",
         #"CONNECT",
     ],
+    include_in_schema=False,
 )
 async def catch_all(path: str):
     messages = [
