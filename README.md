@@ -60,6 +60,7 @@ Now you can start the "development" HTTP server. Below is a list of environment 
 * `ENVIRONMENT`: Specify if you are starting the server locally (`LCL`) or in production (`PRD`).
 * `BEARER_TOKEN`: The Bearer token required to authorize API usage.
 * `RDBMS_URL`: Configures the relational database management system.
+* `RDBMS_LOG`: Boolean flag to enable database query logging.
 * `OPTIMIZER_HOST`: Sets the optimizer service host.
 * `OPTIMIZER_PORT`: Sets the optimizer service port.
 * `OPTIMIZER_AUTH`: Sets the optimizer service authentication passkey.
@@ -70,6 +71,7 @@ Next, is an example of the command to start the development server.
 ENVIRONMENT=LCL \
 BEARER_TOKEN=1234 \
 RDBMS_URL=sqlite:///sqlite/routehub.db \
+RDBMS_LOG=true \
 OPTIMIZER_HOST=http://localhost \
 OPTIMIZER_PORT=3005 \
 OPTIMIZER_AUTH=example \
@@ -84,6 +86,7 @@ We can change the host and port using the `--port` and `--host` parameters, as s
 ENVIRONMENT=LCL \
 BEARER_TOKEN=1234 \
 RDBMS_URL=sqlite:///sqlite/routehub.db \
+RDBMS_LOG=true \
 OPTIMIZER_HOST=http://localhost \
 OPTIMIZER_PORT=3005 \
 OPTIMIZER_AUTH=example \
@@ -116,6 +119,7 @@ docker run --rm -it \
   --volume "/path/to/sqlite.db:/opt/routehub.db" \
   --env ENVIRONMENT=LCL \
   --env RDBMS_URL="sqlite:////opt/routehub.db" \
+  --env RDBMS_LOG=true \
   --env OPTIMIZER_HOST="http://localhost" \
   --env OPTIMIZER_PORT=3005 \
   --env OPTIMIZER_AUTH=example \
