@@ -1,7 +1,7 @@
 RouteHub REST API
 =================
 
-This project implements the OpenAPI Description for the RouteHub system.
+This project implements [RouteHub's OpenAPI Description](https://github.com/tandiljuan/routehub-openapi).
 
 
 Requirements
