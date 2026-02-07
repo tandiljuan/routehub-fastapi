@@ -46,6 +46,9 @@ class Optimizer():
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize/{task_id}"
         headers = {'api-key': self.auth} if self.auth else {}
         r = requests.get(url, headers=headers)
-        rbody = json.loads(r.text)
+        rbody = {"status": "processing"}
+        if 200 == r.status_code:
+            rbody = json.loads(r.text)
+            rbody['status'] = "completed"
         result_set = ResultSet.model_validate(rbody)
         return result_set

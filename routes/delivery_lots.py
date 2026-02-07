@@ -25,10 +25,16 @@ from models.delivery_plan import (
     DeliveryPathDelivery,
     DeliveryPlan,
     DeliveryPlanResponse,
+    DeliveryRouteUpdate,
 )
 from models.driver import Driver
 from libs.optimizer import Optimizer
 from libs.optimizer.models import (
+    DraftPackage,
+    DraftRoute,
+    DraftRouting,
+    DraftSet,
+    DraftWaypoint,
     PlanAddress,
     PlanClustering,
     PlanContext,
@@ -237,6 +243,12 @@ async def delivery_lots_id_plan_post(
     if not lot_db:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
+    if DeliveryLotState.PROCESSED == lot_db.state:
+        raise HTTPException(status_code=409, detail="The plan is being processed")
+
+    if DeliveryLotState.OPTIMIZING == lot_db.state:
+        raise HTTPException(status_code=409, detail="The plan is being optimized")
+
     v_sum = 0
     priority = 0
     vehicles = []
@@ -370,35 +382,79 @@ async def delivery_lots_id_plan_get(
 
     plan_db = plans[-1]
 
-    if DeliveryLotState.PROCESSING != lot_db.state:
-        # Return (custom serialized) Plan
-        return plan_db.model_dump()
+    if DeliveryLotState.PROCESSING == lot_db.state:
+        plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
 
-    plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
+        if "completed" != plan_result.status:
+            # Return (custom serialized) Plan
+            return plan_db.model_dump()
 
-    if "completed" != plan_result.status:
-        # Return (custom serialized) Plan
-        return plan_db.model_dump()
-
-    # Create paths (routes)
-    for r in plan_result.routes:
-        pth_db = DeliveryPath(
-            delivery_plan_id=plan_db.id,
-            milestone_id=lot_db.milestone.id,
-            vehicle_id=r.vehicle_type,
-        )
-        db.add(pth_db)
-        db.commit()
-        # Create relations between Path and Deliveries
-        for w in r.optimized_waypoints:
-            link = DeliveryPathDelivery(
-                delivery_path_id=pth_db.id,
-                delivery_id=w.packages[0].package_id,
-                delivery_order=w.order,
+        # Create paths (routes)
+        for r in plan_result.routes:
+            pth_db = DeliveryPath(
+                delivery_plan_id=plan_db.id,
+                milestone_id=lot_db.milestone.id,
+                vehicle_id=r.vehicle_type,
             )
-            pth_db.deliveries.append(link)
             db.add(pth_db)
             db.commit()
+            # Create relations between Path and Deliveries
+            for w in r.optimized_waypoints:
+                link = DeliveryPathDelivery(
+                    delivery_path_id=pth_db.id,
+                    delivery_id=w.packages[0].package_id,
+                    delivery_order=w.order,
+                )
+                pth_db.deliveries.append(link)
+                db.add(pth_db)
+                db.commit()
+
+    elif DeliveryLotState.OPTIMIZING == lot_db.state:
+        draft_result = optimizer.get_draft_result(task_id=plan_db.optimizer_id)
+
+        if "completed" != draft_result.status:
+            # Return (custom serialized) Plan
+            return plan_db.model_dump()
+
+        query = select(DeliveryPath, DeliveryPathDelivery)
+        query = query.join(DeliveryPathDelivery)
+
+        for route in draft_result.routes:
+            # Loop new points and remove old relations
+            for waypoint in route.optimized_waypoints:
+                dlv_id = waypoint.packages[0].package_id
+                dlv_qry = query.where(
+                    DeliveryPath.delivery_plan_id == plan_db.id,
+                    DeliveryPathDelivery.delivery_id == dlv_id,
+                )
+                link = db.exec(dlv_qry).first()
+                if None != link:
+                    db.delete(link[-1])
+                    db.commit()
+
+            pth_db = db.get(DeliveryPath, route.route_id)
+
+            # Loop old points and remove old relations
+            for link in pth_db.deliveries:
+                db.delete(link)
+                db.commit()
+
+            # Loop new points and create new relations
+            for waypoint in route.optimized_waypoints:
+                dlv_id = waypoint.packages[0].package_id
+                dlv_order = waypoint.order
+                link = DeliveryPathDelivery(
+                    delivery_path_id=pth_db.id,
+                    delivery_id=dlv_id,
+                    delivery_order=dlv_order,
+                )
+                pth_db.deliveries.append(link)
+                db.add(pth_db)
+                db.commit()
+
+    else:
+        # Return (custom serialized) Plan
+        return plan_db.model_dump()
 
     # Update Lot
     lot_db.state=DeliveryLotState.PROCESSED
@@ -408,3 +464,75 @@ async def delivery_lots_id_plan_get(
     # Return (custom serialized) Plan
     db.refresh(plan_db)
     return plan_db.model_dump()
+
+@router.patch(
+    "/{id}/plan",
+    status_code=202,
+)
+async def delivery_lots_id_plan_patch(
+    id: int,
+    db: DbSession,
+    patch_data: list[DeliveryRouteUpdate],
+):
+    if not optimizer:
+        raise HTTPException(status_code=500)
+
+    lot_db = db.get(DeliveryLot, id)
+    if not lot_db:
+        raise HTTPException(status_code=404, detail="Delivery lot not found")
+
+    if DeliveryLotState.PROCESSED != lot_db.state:
+        raise HTTPException(status_code=409, detail="The plan must be 'PROCESSED' to be updated")
+
+    # Change Lot State
+    lot_db.state=DeliveryLotState.OPTIMIZING
+    db.add(lot_db)
+    db.commit()
+
+    geo_rgx = re.compile(r'([+-]?[\d\.]+)')
+
+    routes = []
+    for route in patch_data:
+        waypoints = []
+        for dlv_id in route.deliveries:
+            dlv_db = db.get(Delivery, dlv_id)
+            if not dlv_db:
+                raise HTTPException(status_code=404, detail=f"Delivery not found (id: '{dlv_id}')")
+            p = DraftPackage(
+                package_id=str(dlv_db.id),
+            )
+            packages = [p]
+            geo = geo_rgx.findall(dlv_db.destination)
+            waypoints.append(DraftWaypoint(
+                lat=float(geo[0]),
+                lng=float(geo[1]),
+                packages=packages,
+            ))
+        routes.append(DraftRoute(
+            route_id=str(route.id),
+            waypoints=waypoints,
+        ))
+
+    geo = geo_rgx.findall(lot_db.milestone.location)
+
+    draft = DraftSet(
+        origin_lat=float(geo[0]),
+        origin_lng=float(geo[1]),
+        tag=lot_db.milestone.name.strip().replace(' ', '_').upper(),
+        optimization_params=DraftRouting(),
+        routes=routes,
+    )
+
+    draft_id = optimizer.send_route_draft(draft=draft)
+
+    plan_db = lot_db.plans[-1]
+    plan_db.optimizer_id = draft_id
+
+    # Update Plan
+    db.add(plan_db)
+    db.commit()
+
+    return {
+        "code": 202,
+        "message": "Routes queued for optimization",
+    }
