@@ -1,0 +1,396 @@
+# Project page: https://github.com/eruvanos/kandown
+# To open this file with uv, run: uv run kandown backlog.yaml
+settings:
+  dark_mode: false
+  random_port: false
+  store_images_in_subfolder: false
+tasks:
+- closed_at: '2026-02-19T20:31:42.754668'
+  created_at: '2026-02-19T20:11:29.860899'
+  id: K-001
+  order: 0
+  status: done
+  tags: []
+  text: Clean `delivery-plan` branch.
+  type: feature
+  updated_at: '2026-02-19T20:33:04.800475'
+- created_at: '2026-02-19T20:13:08.327730'
+  id: K-002
+  order: 0
+  status: in_progress
+  tags: []
+  text: 'Hooks
+
+
+    + [cronjobs in container #1](https://devtron.ai/blog/running-cronjob-inside-docker-container/)
+
+    + [cronjobs in container #2](https://stackoverflow.com/a/37458519)
+
+    + [ofelia](https://github.com/mcuadros/ofelia)
+
+    + [chadburn](https://github.com/PremoWeb/chadburn)
+
+    + [supercronic](https://github.com/aptible/supercronic)
+
+    + [Cronicle](https://github.com/jhuckaby/Cronicle)
+
+    + [dagu](https://github.com/dagu-org/dagu)
+
+    + [Python: schedule](https://github.com/dbader/schedule)
+
+    + [Python: apscheduler](https://github.com/agronholm/apscheduler)
+
+    + [Python: scheduler](https://github.com/DigonIO/scheduler)
+
+    + [Python CLI: typer](https://github.com/fastapi/typer)
+
+    + [Python CLI: click](https://github.com/pallets/click)'
+  type: feature
+  updated_at: '2026-02-19T20:35:01.780868'
+- closed_at: '2026-02-19T20:32:01.053393'
+  created_at: '2026-02-19T20:13:41.004708'
+  id: K-003
+  order: 2
+  status: done
+  tags: []
+  text: 'Do not add **everything** in Dockerfile (eg: `.git`, `README.md`, etc).'
+  type: chore
+  updated_at: '2026-02-19T20:33:24.618521'
+- closed_at: '2026-02-19T20:32:17.532060'
+  created_at: '2026-02-19T20:13:58.197684'
+  id: K-004
+  order: 4
+  status: done
+  tags: []
+  text: Docker compose load environment variables from file.
+  type: chore
+  updated_at: '2026-02-19T20:34:22.556605'
+- closed_at: '2026-02-19T20:32:22.610463'
+  created_at: '2026-02-19T20:14:57.938663'
+  id: K-005
+  order: 6
+  status: done
+  tags: []
+  text: 'Disable Server Header
+
+
+    + [uvicorn](https://github.com/Kludex/uvicorn/issues/688)
+
+    + [middleware](https://fastapi.tiangolo.com/tutorial/middleware/)'
+  type: feature
+  updated_at: '2026-02-19T20:33:04.801014'
+- closed_at: '2026-02-19T20:32:30.583324'
+  created_at: '2026-02-19T20:16:41.680352'
+  id: K-006
+  order: 8
+  status: done
+  tags: []
+  text: "FastAPI **everything else** route handler and return 401\n\n[How to capture\
+    \ arbitrary paths at one route in FastAPI?](https://stackoverflow.com/a/64147450).\n\
+    \n```python\n# 2. Define the \"everything else\" catch-all route LAST\n# The ':path'\
+    \ suffix tells FastAPI to match any path, including slashes\n@app.get(\"/{full_path:path}\"\
+    )\nasync def catch_all(request: Request, full_path: str):\n    # Log the unmatched\
+    \ path or perform custom logic\n    print(f\"Unmatched path requested: {full_path}\"\
+    )\n\n    # You can return a custom 404 response or render a frontend application's\
+    \ index.html\n    return JSONResponse(\n        status_code=404,\n        content={\"\
+    message\": f\"Oops! The path '/{full_path}' was not found.\"},\n    )\n```"
+  type: feature
+  updated_at: '2026-02-19T20:33:04.801152'
+- closed_at: '2026-02-19T20:33:04.801303'
+  created_at: '2026-02-19T20:19:19.750273'
+  id: K-007
+  order: 10
+  status: done
+  tags: []
+  text: Create endpoint to update/change the points/locations/deliveries in a route
+    (call to 'optimizer').
+  type: feature
+  updated_at: '2026-02-19T20:33:04.801303'
+- created_at: '2026-02-19T20:20:06.858714'
+  id: K-008
+  order: 2
+  status: todo
+  tags: []
+  text: Custom validations (geolocation, schedules, etc).
+  type: feature
+  updated_at: '2026-02-19T20:53:58.095557'
+- created_at: '2026-02-19T20:20:26.813502'
+  id: K-009
+  order: 4
+  status: todo
+  tags: []
+  text: Run [Schemathesis](https://github.com/schemathesis/schemathesis) automatic
+    generated test cases.
+  type: chore
+  updated_at: '2026-02-19T20:53:58.096225'
+- created_at: '2026-02-19T20:20:57.438791'
+  id: K-010
+  order: 6
+  status: todo
+  tags: []
+  text: Custom domain and SSL ([Let's Encrypt](https://letsencrypt.org)?).
+  type: feature
+  updated_at: '2026-02-19T20:53:58.096381'
+- created_at: '2026-02-19T20:21:38.239129'
+  id: K-011
+  order: 8
+  status: todo
+  tags: []
+  text: "Select a simple deployment system:\n  + [disco](https://github.com/letsdiscodev/cli)\
+    \ (CLI - WEB-UI?)\n  + [dokku](https://github.com/dokku/dokku) (CLI - K3S for\
+    \ Cluster)\n  + [haloy](https://github.com/haloydev/haloy) (CLI)\n  + [docker\
+    \ stack (swarm)](https://docs.docker.com/engine/swarm/stack-deploy/) (CLI)\n \
+    \   - [swarm](https://github.com/ChristianUlbrich/dockerswarmstill.rocks) = infrastructure\
+    \ layer\n    - [stack](https://medium.com/@leroyleowdev/deploying-app-with-docker-stacks-24ea5a863fb7)\
+    \ = application deployment layer on top of Swarm\n    - [Awesome Swarm](https://github.com/BretFisher/awesome-swarm)\n\
+    \    - [swarm-cd](https://github.com/m-adawi/swarm-cd)\n    - [doco-cd](https://github.com/kimdre/doco-cd)\n\
+    \    - [traefik](https://github.com/traefik/traefik): ssl + routing\n    - [gitea](https://github.com/go-gitea/gitea):\
+    \ source code repo (+ ci/cd + registry)\n    - [woodpecker](https://github.com/woodpecker-ci/woodpecker):\
+    \ ci/cd\n    - [distribution](https://github.com/distribution/distribution): simple\
+    \ private container registry\n  + [kamal](https://github.com/basecamp/kamal) (CLI\
+    \ - Needs Ruby and Docker Registry)\n  + [dokploy](https://github.com/dokploy/dokploy)\
+    \ (CLI - WEB-UI?)\n  + [devpush](https://github.com/hunvreus/devpush) (CLI - WEB-UI?)\n\
+    \  + [caprover](https://github.com/caprover/caprover) (WEB-UI + CLI)\n  + [coolify](https://github.com/coollabsio/coolify)\
+    \ (WEB-UI)\n  + [temps](https://github.com/gotempsh/temps) (WEB-UI)\n  + [appwrite](https://github.com/appwrite)\
+    \ (WEB-UI)\n  + [swiftwave](https://github.com/swiftwave-org/swiftwave) (WEB-UI)\n\
+    \  + [lunni](https://lunni.dev) (WEB-UI)\n  + [portainer](https://github.com/portainer/portainer)\
+    \ (WEB-UI)\n  + [QuickStack](https://github.com/biersoeckli/QuickStack) (WEB-UI\
+    \ - K3S)\n  + [piku](https://github.com/piku/piku) (CLI - NO Containers)"
+  type: epic
+  updated_at: '2026-02-19T20:53:58.096522'
+- created_at: '2026-02-19T20:22:13.739127'
+  id: K-012
+  order: 10
+  status: todo
+  tags: []
+  text: Authorization ([JWT](https://www.jwt.io)).
+  type: feature
+  updated_at: '2026-02-19T20:53:58.096663'
+- created_at: '2026-02-19T20:22:27.450539'
+  id: K-013
+  order: 12
+  status: todo
+  tags: []
+  text: Tenant Settings.
+  type: feature
+  updated_at: '2026-02-19T20:53:58.096813'
+- created_at: '2026-02-19T20:22:47.696815'
+  id: K-014
+  order: 14
+  status: todo
+  tags: []
+  text: Save extra info with records (`created_at`, `updated_at`, `created_by`, `updated_by`,
+    etc).
+  type: feature
+  updated_at: '2026-02-19T20:53:58.096980'
+- created_at: '2026-02-19T20:23:03.333579'
+  id: K-015
+  order: 16
+  status: todo
+  tags: []
+  text: Remove old data after **X** period of time.
+  type: feature
+  updated_at: '2026-02-19T20:53:58.097142'
+- created_at: '2026-02-19T20:23:21.021739'
+  id: K-016
+  order: 18
+  status: todo
+  tags: []
+  text: Lock delivery lot and path elements during processing. Ensure they are unlocked
+    afterwards, even if an error occurs or if the "processing" state fails to transition
+    to "processed" within a defined period or number of retries.
+  type: feature
+  updated_at: '2026-02-19T20:53:58.097301'
+- created_at: '2026-02-19T20:24:01.694649'
+  id: K-017
+  order: 20
+  status: todo
+  tags: []
+  text: Check how to set Delivery Lot state to `CANCELED` after X amount of failures.
+  type: feature
+  updated_at: '2026-02-19T20:53:58.097458'
+- created_at: '2026-02-19T20:24:57.024762'
+  id: K-018
+  order: 22
+  status: todo
+  tags: []
+  text: 'RouteHub REST API
+
+
+    Create Plan:
+
+    - `force_vehicles_fleet_match`
+
+    - `rebalance_by_distance`'
+  type: feature
+  updated_at: '2026-02-19T20:53:58.097611'
+- created_at: '2026-02-19T20:25:16.628325'
+  id: K-019
+  order: 24
+  status: todo
+  tags: []
+  text: 'RouteHub REST API: Return Geometry.'
+  type: feature
+  updated_at: '2026-02-19T20:53:58.097767'
+- created_at: '2026-02-19T20:26:12.972635'
+  id: K-020
+  order: 26
+  status: todo
+  tags: []
+  text: 'REST API version in header (request specific API version)
+
+
+    + [REST versioning - URL vs. header](https://stackoverflow.com/a/30880800)
+
+    + [What Is API Versioning?](https://www.akamai.com/glossary/what-is-api-versioning)
+
+    + [API Versioning](https://dev.to/abhivyaktii/api-versioning-using-headers-a-clean-and-flexible-approach-218p)
+
+    + [Best Practices](https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design#implement-versioning)'
+  type: feature
+  updated_at: '2026-02-19T20:53:58.097923'
+- created_at: '2026-02-19T20:26:52.834154'
+  id: K-021
+  order: 28
+  status: todo
+  tags: []
+  text: 'Update current server configurations (ssh, etc).
+
+
+    + [ansible](https://github.com/ansible/ansible)
+
+    + [pulumi](https://github.com/pulumi/)
+
+    + [awesome hetzner cloud](https://github.com/hetznercloud/awesome-hcloud)'
+  type: chore
+  updated_at: '2026-02-19T20:53:58.098367'
+- created_at: '2026-02-19T20:27:27.191543'
+  id: K-022
+  order: 30
+  status: todo
+  tags: []
+  text: 'Migrate to [Kubernetes](https://kubernetes.io/)
+
+
+    + [install a kubernetes cluster: a step-by-step guide](https://www.plural.sh/blog/install-kubernetes-cluster-guide/)
+
+    + [kubespray](https://github.com/kubernetes-sigs/kubespray)
+
+    + [kubekey](https://github.com/kubesphere/kubekey)
+
+    + [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)
+
+    + [k0s](https://github.com/k0sproject/k0s)
+
+    + [k3s](https://github.com/k3s-io/k3s/)
+
+    + [talos](https://github.com/siderolabs/talos)
+
+    + [kairos](https://github.com/kairos-io/kairos)
+
+    + [linode kubernetes engine](https://www.linode.com/products/kubernetes/)'
+  type: epic
+  updated_at: '2026-02-19T20:53:58.098536'
+- created_at: '2026-02-19T20:28:29.557705'
+  id: K-023
+  order: 32
+  status: todo
+  tags: []
+  text: "Improve RouteHub REST API (FastAPI) logging.\n\n+ [structlog](https://github.com/hynek/structlog)\n\
+    \    * [FastAPI #1](https://gist.github.com/nkhitrov/38adbb314f0d35371eba4ffb8f27078f)\n\
+    \    * [fastapi-logger](https://github.com/redb0/fastapi-logger)\n    * [Logging\
+    \ setup for FastAPI](https://gist.github.com/nymous/f138c7f06062b7c43c060bf03759c29e)\n\
+    + [loguru](https://github.com/Delgan/loguru)\n    * [FastAPI #1](https://medium.com/@muh.bazm/how-i-unified-logging-in-fastapi-with-uvicorn-and-loguru-6813058c48fc)\n\
+    \    * [FastAPI #2](https://gist.github.com/nkhitrov/a3e31cfcc1b19cba8e1b626276148c49)\n\
+    \    * [FastAPI #3](https://mahdijafaridev.medium.com/log-like-a-legend-power-up-fastapi-with-loguru-for-real-world-logging-bc0f10834eb4)\n\
+    \    * [Gunicorn](https://github.com/Delgan/loguru/issues/1111#issuecomment-3357834497)\n\
+    \    * [FastAPI #4](https://www.dash0.com/guides/python-logging-with-loguru)"
+  type: chore
+  updated_at: '2026-02-19T20:53:58.098683'
+- created_at: '2026-02-19T20:29:10.423015'
+  id: K-024
+  order: 34
+  status: todo
+  tags: []
+  text: 'Review [Log Aggregation Tools](https://github.com/FlyingKaenguru/log-aggregation-tools.docker-compose)
+
+
+    + [SigNoz](https://github.com/SigNoz/signoz)
+
+    + [Grafana Loki](https://github.com/grafana/loki)
+
+    + [Fluentd](https://github.com/fluent/fluentd)
+
+    + [Logstash](https://github.com/elastic/logstash)
+
+    + [Vector](https://github.com/vectordotdev/vector)'
+  type: chore
+  updated_at: '2026-02-19T20:53:58.098827'
+- created_at: '2026-02-19T20:30:00.195700'
+  id: K-025
+  order: 36
+  status: todo
+  tags: []
+  text: Research [Prometheus](https://prometheus.io).
+  type: chore
+  updated_at: '2026-02-19T20:53:58.098969'
+- created_at: '2026-02-19T20:30:26.184422'
+  id: K-026
+  order: 38
+  status: todo
+  tags: []
+  text: 'Bot Defence
+
+
+    + [A summary of my bot defence systems](https://alexschroeder.ch/view/2025-03-21-defence-summary)'
+  type: chore
+  updated_at: '2026-02-19T20:53:58.099108'
+- created_at: '2026-02-19T20:31:00.465690'
+  id: K-027
+  order: 40
+  status: todo
+  tags: []
+  text: 'Environment Variables Manager (Password Protected)
+
+
+    + [direnv](https://github.com/direnv/direnv)
+
+    + [envio](https://github.com/humblepenguinn/envio)
+
+    + [pass](https://www.passwordstore.org)
+
+    + [fcpass](https://github.com/Sxmourai/Fast-Cli-Keepass)
+
+    + [pass-cli](https://github.com/arimxyer/pass-cli)
+
+    + [Check 1Password secret reference](https://hugovk.dev/blog/2025/secrets-in-env-vars/)
+
+    + [rudric](https://github.com/mike-lloyd03/rudric)
+
+    + [openbao (vault fork)](https://github.com/openbao/openbao)
+
+    + [RustyVault](https://github.com/Tongsuo-Project/RustyVault)
+
+    + [Docker Secrets](https://docs.docker.com/engine/swarm/secrets/)'
+  type: chore
+  updated_at: '2026-02-19T20:53:58.099246'
+- created_at: '2026-02-19T20:52:11.333431'
+  id: K-028
+  order: 0
+  status: todo
+  tags: []
+  text: 'Implement fleet validation and error response
+
+
+    Combine validation to ensure the fleet capacity covers the required point count
+    and modify the code to return an error if minimum values are not met. Check **size_cluster**
+    logic.
+
+
+    - **Objective**: Ensure that the fleet capacity sent is sufficient to cover the
+    required number of points. If not met, return an error.
+
+    - **Action**: Integrate logic that evaluates capacity and updates the response
+    logic to include relevant error handling.'
+  type: bug
+  updated_at: '2026-02-19T20:53:58.099390'
