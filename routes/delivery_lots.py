@@ -8,6 +8,7 @@ from fastapi import (
     Request,
     Response,
 )
+from sqlalchemy import func
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.enum import DeliveryLotState
@@ -249,12 +250,29 @@ async def delivery_lots_id_plan_post(
     if DeliveryLotState.OPTIMIZING == lot_db.state:
         raise HTTPException(status_code=409, detail="The plan is being optimized")
 
+    # Count amount of vehicles
     v_sum = 0
+    for link in lot_db.fleet.vehicles:
+        v_sum += link.quantity
+
+    # Total amount of min and max stops
+    t_stop_min = v_sum * lot_db.route_stops_min
+    t_stop_max = v_sum * lot_db.route_stops_max
+
+    # Count amount of addresses
+    a_sum = db.exec(
+        select(func.count()).where(DeliveryLotDelivery.delivery_lot_id == lot_db.id)
+    ).one()
+
+    limit_stop_min = math.ceil(a_sum * 0.95)
+    limit_stop_max = math.floor(a_sum * 1.05)
+    if t_stop_min >= limit_stop_min or t_stop_max <= limit_stop_max:
+        raise HTTPException(status_code=422, detail=f"Minimum stops ({t_stop_min}) must be at least 5% below the addresses ({a_sum}) and maximum stops ({t_stop_max}) must be at least %5 above them")
+
     priority = 0
     vehicles = []
     for link in lot_db.fleet.vehicles:
         priority += 1
-        v_sum += link.quantity
         pv = PlanVehicle(
             type=str(link.vehicle.id),
             quantity=link.quantity,
@@ -284,10 +302,8 @@ async def delivery_lots_id_plan_post(
 
     geo_rgx = re.compile(r'([+-]?[\d\.]+)')
 
-    a_sum = 0
     addresses = []
     for link in lot_db.deliveries:
-        a_sum += 1
         dlv = link.delivery
 
         p = PlanPackage(
