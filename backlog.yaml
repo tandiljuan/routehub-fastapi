@@ -17,7 +17,7 @@ tasks:
 - created_at: '2026-02-19T20:13:08.327730'
   id: K-002
   order: 2
-  status: in_progress
+  status: todo
   tags: []
   text: 'Hooks
 
@@ -46,7 +46,7 @@ tasks:
 
     + [Python CLI: click](https://github.com/pallets/click)'
   type: feature
-  updated_at: '2026-02-19T21:15:04.773035'
+  updated_at: '2026-02-21T12:58:33.088240'
 - closed_at: '2026-02-19T20:32:01.053393'
   created_at: '2026-02-19T20:13:41.004708'
   id: K-003
@@ -108,12 +108,12 @@ tasks:
   updated_at: '2026-02-19T20:33:04.801303'
 - created_at: '2026-02-19T20:20:06.858714'
   id: K-008
-  order: 2
+  order: 0
   status: todo
   tags: []
   text: Custom validations (geolocation, schedules, etc).
   type: feature
-  updated_at: '2026-02-19T20:53:58.095557'
+  updated_at: '2026-02-21T12:58:33.088597'
 - created_at: '2026-02-19T20:20:26.813502'
   id: K-009
   order: 4
@@ -122,7 +122,7 @@ tasks:
   text: Run [Schemathesis](https://github.com/schemathesis/schemathesis) automatic
     generated test cases.
   type: chore
-  updated_at: '2026-02-19T20:53:58.096225'
+  updated_at: '2026-02-21T12:58:33.088774'
 - created_at: '2026-02-19T20:20:57.438791'
   id: K-010
   order: 6
@@ -130,7 +130,7 @@ tasks:
   tags: []
   text: Custom domain and SSL ([Let's Encrypt](https://letsencrypt.org)?).
   type: feature
-  updated_at: '2026-02-19T20:53:58.096381'
+  updated_at: '2026-02-21T12:58:33.088940'
 - created_at: '2026-02-19T20:21:38.239129'
   id: K-011
   order: 8
@@ -157,7 +157,7 @@ tasks:
     \ (WEB-UI)\n  + [QuickStack](https://github.com/biersoeckli/QuickStack) (WEB-UI\
     \ - K3S)\n  + [piku](https://github.com/piku/piku) (CLI - NO Containers)"
   type: epic
-  updated_at: '2026-02-19T20:53:58.096522'
+  updated_at: '2026-02-21T12:58:33.089443'
 - created_at: '2026-02-19T20:22:13.739127'
   id: K-012
   order: 10
@@ -165,7 +165,7 @@ tasks:
   tags: []
   text: Authorization ([JWT](https://www.jwt.io)).
   type: feature
-  updated_at: '2026-02-19T20:53:58.096663'
+  updated_at: '2026-02-21T12:58:33.089633'
 - created_at: '2026-02-19T20:22:27.450539'
   id: K-013
   order: 12
@@ -173,7 +173,7 @@ tasks:
   tags: []
   text: Tenant Settings.
   type: feature
-  updated_at: '2026-02-19T20:53:58.096813'
+  updated_at: '2026-02-21T12:58:33.089790'
 - created_at: '2026-02-19T20:22:47.696815'
   id: K-014
   order: 14
@@ -182,7 +182,7 @@ tasks:
   text: Save extra info with records (`created_at`, `updated_at`, `created_by`, `updated_by`,
     etc).
   type: feature
-  updated_at: '2026-02-19T20:53:58.096980'
+  updated_at: '2026-02-21T12:58:33.089944'
 - created_at: '2026-02-19T20:23:03.333579'
   id: K-015
   order: 16
@@ -190,7 +190,7 @@ tasks:
   tags: []
   text: Remove old data after **X** period of time.
   type: feature
-  updated_at: '2026-02-19T20:53:58.097142'
+  updated_at: '2026-02-21T12:58:33.090168'
 - created_at: '2026-02-19T20:23:21.021739'
   id: K-016
   order: 18
@@ -200,7 +200,7 @@ tasks:
     afterwards, even if an error occurs or if the "processing" state fails to transition
     to "processed" within a defined period or number of retries.
   type: feature
-  updated_at: '2026-02-19T20:53:58.097301'
+  updated_at: '2026-02-21T12:58:33.090444'
 - created_at: '2026-02-19T20:24:01.694649'
   id: K-017
   order: 20
@@ -208,7 +208,7 @@ tasks:
   tags: []
   text: Check how to set Delivery Lot state to `CANCELED` after X amount of failures.
   type: feature
-  updated_at: '2026-02-19T20:53:58.097458'
+  updated_at: '2026-02-21T12:58:33.090593'
 - created_at: '2026-02-19T20:24:57.024762'
   id: K-018
   order: 22
@@ -223,7 +223,7 @@ tasks:
 
     - `rebalance_by_distance`'
   type: feature
-  updated_at: '2026-02-19T20:53:58.097611'
+  updated_at: '2026-02-21T12:58:33.090731'
 - created_at: '2026-02-19T20:25:16.628325'
   id: K-019
   order: 24
@@ -231,7 +231,7 @@ tasks:
   tags: []
   text: 'RouteHub REST API: Return Geometry.'
   type: feature
-  updated_at: '2026-02-19T20:53:58.097767'
+  updated_at: '2026-02-21T12:58:33.090869'
 - created_at: '2026-02-19T20:26:12.972635'
   id: K-020
   order: 26
@@ -248,7 +248,7 @@ tasks:
 
     + [Best Practices](https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design#implement-versioning)'
   type: feature
-  updated_at: '2026-02-19T20:53:58.097923'
+  updated_at: '2026-02-21T12:58:33.091002'
 - created_at: '2026-02-19T20:26:52.834154'
   id: K-021
   order: 28
@@ -263,7 +263,7 @@ tasks:
 
     + [awesome hetzner cloud](https://github.com/hetznercloud/awesome-hcloud)'
   type: chore
-  updated_at: '2026-02-19T20:53:58.098367'
+  updated_at: '2026-02-21T12:58:33.091137'
 - created_at: '2026-02-19T20:27:27.191543'
   id: K-022
   order: 30
@@ -292,7 +292,7 @@ tasks:
 
     + [linode kubernetes engine](https://www.linode.com/products/kubernetes/)'
   type: epic
-  updated_at: '2026-02-21T12:46:29.997412'
+  updated_at: '2026-02-21T12:58:33.091273'
 - created_at: '2026-02-19T20:28:29.557705'
   id: K-023
   order: 32
@@ -308,7 +308,7 @@ tasks:
     \    * [Gunicorn](https://github.com/Delgan/loguru/issues/1111#issuecomment-3357834497)\n\
     \    * [FastAPI #4](https://www.dash0.com/guides/python-logging-with-loguru)"
   type: chore
-  updated_at: '2026-02-19T20:53:58.098683'
+  updated_at: '2026-02-21T12:58:33.091411'
 - created_at: '2026-02-19T20:29:10.423015'
   id: K-024
   order: 34
@@ -327,7 +327,7 @@ tasks:
 
     + [Vector](https://github.com/vectordotdev/vector)'
   type: chore
-  updated_at: '2026-02-19T20:53:58.098827'
+  updated_at: '2026-02-21T12:58:33.091551'
 - created_at: '2026-02-19T20:30:00.195700'
   id: K-025
   order: 36
@@ -335,7 +335,7 @@ tasks:
   tags: []
   text: Research [Prometheus](https://prometheus.io).
   type: chore
-  updated_at: '2026-02-19T20:53:58.098969'
+  updated_at: '2026-02-21T12:58:33.091840'
 - created_at: '2026-02-19T20:30:26.184422'
   id: K-026
   order: 38
@@ -346,7 +346,7 @@ tasks:
 
     + [A summary of my bot defence systems](https://alexschroeder.ch/view/2025-03-21-defence-summary)'
   type: chore
-  updated_at: '2026-02-19T20:53:58.099108'
+  updated_at: '2026-02-21T12:58:33.092000'
 - created_at: '2026-02-19T20:31:00.465690'
   id: K-027
   order: 40
@@ -375,7 +375,7 @@ tasks:
 
     + [Docker Secrets](https://docs.docker.com/engine/swarm/secrets/)'
   type: chore
-  updated_at: '2026-02-19T20:53:58.099246'
+  updated_at: '2026-02-21T12:58:33.092163'
 - created_at: '2026-02-19T20:52:11.333431'
   id: K-028
   order: 0
