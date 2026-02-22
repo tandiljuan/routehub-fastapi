@@ -13,7 +13,7 @@ tasks:
   tags: []
   text: Clean `delivery-plan` branch.
   type: feature
-  updated_at: '2026-02-19T20:33:04.800475'
+  updated_at: '2026-02-21T22:02:17.385967'
 - created_at: '2026-02-19T20:13:08.327730'
   id: K-002
   order: 2
@@ -55,7 +55,7 @@ tasks:
   tags: []
   text: 'Do not add **everything** in Dockerfile (eg: `.git`, `README.md`, etc).'
   type: chore
-  updated_at: '2026-02-19T20:33:24.618521'
+  updated_at: '2026-02-21T22:02:17.386445'
 - closed_at: '2026-02-19T20:32:17.532060'
   created_at: '2026-02-19T20:13:58.197684'
   id: K-004
@@ -64,7 +64,7 @@ tasks:
   tags: []
   text: Docker compose load environment variables from file.
   type: chore
-  updated_at: '2026-02-19T20:34:22.556605'
+  updated_at: '2026-02-21T22:02:17.386630'
 - closed_at: '2026-02-19T20:32:22.610463'
   created_at: '2026-02-19T20:14:57.938663'
   id: K-005
@@ -78,7 +78,7 @@ tasks:
 
     + [middleware](https://fastapi.tiangolo.com/tutorial/middleware/)'
   type: feature
-  updated_at: '2026-02-19T20:33:04.801014'
+  updated_at: '2026-02-21T22:02:17.386783'
 - closed_at: '2026-02-19T20:32:30.583324'
   created_at: '2026-02-19T20:16:41.680352'
   id: K-006
@@ -95,7 +95,7 @@ tasks:
     \ index.html\n    return JSONResponse(\n        status_code=404,\n        content={\"\
     message\": f\"Oops! The path '/{full_path}' was not found.\"},\n    )\n```"
   type: feature
-  updated_at: '2026-02-19T20:33:04.801152'
+  updated_at: '2026-02-21T22:02:17.386931'
 - closed_at: '2026-02-19T20:33:04.801303'
   created_at: '2026-02-19T20:19:19.750273'
   id: K-007
@@ -105,15 +105,15 @@ tasks:
   text: Create endpoint to update/change the points/locations/deliveries in a route
     (call to 'optimizer').
   type: feature
-  updated_at: '2026-02-19T20:33:04.801303'
+  updated_at: '2026-02-21T22:02:17.387088'
 - created_at: '2026-02-19T20:20:06.858714'
   id: K-008
   order: 0
-  status: todo
+  status: in_progress
   tags: []
   text: Custom validations (geolocation, schedules, etc).
   type: feature
-  updated_at: '2026-02-21T12:58:33.088597'
+  updated_at: '2026-02-21T22:03:03.790552'
 - created_at: '2026-02-19T20:20:26.813502'
   id: K-009
   order: 4
@@ -376,10 +376,11 @@ tasks:
     + [Docker Secrets](https://docs.docker.com/engine/swarm/secrets/)'
   type: chore
   updated_at: '2026-02-21T12:58:33.092163'
-- created_at: '2026-02-19T20:52:11.333431'
+- closed_at: '2026-02-21T22:02:17.387305'
+  created_at: '2026-02-19T20:52:11.333431'
   id: K-028
-  order: 0
-  status: in_progress
+  order: 12
+  status: done
   tags: []
   text: 'Implement fleet validation and error response
 
@@ -395,4 +396,4 @@ tasks:
     - **Action**: Integrate logic that evaluates capacity and updates the response
     logic to include relevant error handling.'
   type: bug
-  updated_at: '2026-02-19T21:15:04.773430'
+  updated_at: '2026-02-21T22:02:17.387305'
