@@ -5,6 +5,7 @@ from sqlmodel import (
     Field,
     SQLModel,
 )
+from .types import GeoPoint
 from .enum import MilestoneCategory
 from .company import Company
 
@@ -14,13 +15,13 @@ class MilestoneBase(SQLModel):
     category: MilestoneCategory | None = Field(default=None, sa_column=Column(Enum(MilestoneCategory)))
 
 class MilestoneCreate(MilestoneBase):
-    pass
+    location: GeoPoint
 
 class MilestoneUpdate(MilestoneCreate):
     name: str | None = None
-    location: str | None = None
+    location: GeoPoint | None = None
 
-class MilestoneResponse(MilestoneCreate):
+class MilestoneResponse(MilestoneBase):
     id: str | int
 
     @field_serializer('id', when_used='json')
