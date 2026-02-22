@@ -12,6 +12,7 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from .types import GeoPoint
 from .enum import (
     DeliveryMethod,
     LengthUnit,
@@ -45,10 +46,11 @@ class DeliveryBase(SQLModel):
     extra: Any | None = Field(default=None, sa_column=Column(JSON))
 
 class DeliveryCreate(DeliveryBase):
+    destination: GeoPoint
     milestone_id: str
 
 class DeliveryUpdate(DeliveryCreate):
-    destination: str | None = None
+    destination: GeoPoint | None = None
     milestone_id: str | None = None
 
 class DeliveryResponse(DeliveryBase):
