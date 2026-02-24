@@ -1,6 +1,7 @@
 import os
 from fastapi import Depends
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from libs.authorization import authorization as auth
@@ -35,6 +36,22 @@ app.include_router(milestones.router)
 app.include_router(deliveries.router)
 app.include_router(delivery_lots.router)
 app.include_router(fallback.router)
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    from fastapi.encoders import jsonable_encoder
+    message = {
+        "code": 422,
+        "message": "Validation Error",
+        "errors": [
+            {
+                "msg": error["msg"],
+                "inp": error["input"],
+                "loc": error["loc"],
+            } for error in exc.errors()
+        ],
+    }
+    return JSONResponse(content=message, status_code=422)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
