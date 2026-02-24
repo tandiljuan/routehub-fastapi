@@ -1,3 +1,4 @@
+from typing import Any
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -5,9 +6,11 @@ from fastapi import (
     Response,
 )
 from sqlmodel import select
+from pydantic import TypeAdapter
 from models.database import Session as DbSession
 from models.delivery import (
     Delivery,
+    DeliveryBulkResponse,
     DeliveryCreate,
     DeliveryResponse,
     DeliveryUpdate,
@@ -17,6 +20,9 @@ router = APIRouter(
     prefix="/deliveries",
     tags=["deliveries"],
 )
+
+# TypeAdapter for validation
+dlv_create_adapter = TypeAdapter(DeliveryCreate)
 
 @router.get(
     "",
@@ -53,21 +59,41 @@ async def deliveries_post(
 
 @router.post(
     "/bulk",
-    response_model=list[str],
+    response_model=DeliveryBulkResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def deliveries_bulk_post(db: DbSession, post_data: list[DeliveryCreate]):
-    id_list = []
-    for dlv_post in post_data:
-        dlv_dict = dlv_post.model_dump()
-        dlv_dict['company_id'] = 1
-        dlv_db = Delivery.model_validate(dlv_dict)
-        db.add(dlv_db)
-        db.commit()
-        db.refresh(dlv_db)
-        id_list.append(str(dlv_db.id))
-    return id_list
+async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
+    success = []
+    failure = []
+
+    for index, item in enumerate(post_data):
+        try:
+            dlv_post = dlv_create_adapter.validate_python(item)
+            dlv_dict = dlv_post.model_dump()
+            dlv_dict['company_id'] = 1
+            dlv_db = Delivery.model_validate(dlv_dict)
+            db.add(dlv_db)
+            db.commit()
+            db.refresh(dlv_db)
+            success.append({
+                "idx": index,
+                "id": str(dlv_db.id),
+            })
+
+        except Exception as e:
+            failure.append({
+                "idx": index,
+                "err": [
+                    {
+                        "msg": error["msg"],
+                        "inp": error["input"],
+                        "loc": error["loc"],
+                    } for error in e.errors()
+                ],
+            })
+
+    return {"success": success, "failure": failure}
 
 @router.get(
     "/{id}",
