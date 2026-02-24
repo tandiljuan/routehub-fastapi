@@ -61,6 +61,23 @@ class DeliveryResponse(DeliveryBase):
     def serialize_id_to_str(self, id: int):
         return str(id)
 
+class DeliveryBulkResponse(SQLModel):
+    success: list['Success']
+    failure: list['Failure']
+
+    class Success(SQLModel):
+        idx: int
+        id: str
+
+    class Failure(SQLModel):
+        idx: int
+        err: list['Error']
+
+        class Error(SQLModel):
+            msg: str
+            inp: Any
+            loc: list
+
 class Delivery(DeliveryBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     company_id: int = Field(foreign_key="company.id")
