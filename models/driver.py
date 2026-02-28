@@ -10,7 +10,10 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
-from .types import GeoPoint
+from .types import (
+    Event,
+    GeoPoint,
+)
 from .company import Company
 from .vehicle import (
     Vehicle,
@@ -31,6 +34,7 @@ class DriverVehicleCreate(SQLModel):
 
 class DriverCreate(DriverBase):
     vehicles: list[DriverVehicleCreate] | None = None
+    work_schedules: list[Event] | None = None
     start_point: GeoPoint | None = None
     end_point: GeoPoint | None = None
     work_areas: list[list[GeoPoint]] | None = None
