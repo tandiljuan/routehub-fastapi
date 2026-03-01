@@ -12,7 +12,10 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
-from .types import GeoPoint
+from .types import (
+    Event,
+    GeoPoint,
+)
 from .enum import (
     DeliveryMethod,
     LengthUnit,
@@ -47,6 +50,7 @@ class DeliveryBase(SQLModel):
 
 class DeliveryCreate(DeliveryBase):
     destination: GeoPoint
+    schedules: list[Event] | None = None
     milestone_id: str
 
 class DeliveryUpdate(DeliveryCreate):
