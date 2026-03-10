@@ -12,6 +12,10 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from .types import (
+    Event,
+    GeoPoint,
+)
 from .enum import (
     DeliveryMethod,
     LengthUnit,
@@ -45,10 +49,12 @@ class DeliveryBase(SQLModel):
     extra: Any | None = Field(default=None, sa_column=Column(JSON))
 
 class DeliveryCreate(DeliveryBase):
+    destination: GeoPoint
+    schedules: list[Event] | None = None
     milestone_id: str
 
 class DeliveryUpdate(DeliveryCreate):
-    destination: str | None = None
+    destination: GeoPoint | None = None
     milestone_id: str | None = None
 
 class DeliveryResponse(DeliveryBase):
@@ -58,6 +64,23 @@ class DeliveryResponse(DeliveryBase):
     @field_serializer('id', when_used='json')
     def serialize_id_to_str(self, id: int):
         return str(id)
+
+class DeliveryBulkResponse(SQLModel):
+    success: list['Success']
+    failure: list['Failure']
+
+    class Success(SQLModel):
+        idx: int
+        id: str
+
+    class Failure(SQLModel):
+        idx: int
+        err: list['Error']
+
+        class Error(SQLModel):
+            msg: str
+            inp: Any
+            loc: list
 
 class Delivery(DeliveryBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
