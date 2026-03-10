@@ -256,8 +256,8 @@ async def delivery_lots_id_plan_post(
         v_sum += link.quantity
 
     # Total amount of min and max stops
-    t_stop_min = v_sum * lot_db.route_stops_min
-    t_stop_max = v_sum * lot_db.route_stops_max
+    t_stop_min = v_sum * (lot_db.route_stops_min if lot_db.route_stops_min else 0)
+    t_stop_max = v_sum * (lot_db.route_stops_max if lot_db.route_stops_max else 0)
 
     # Count amount of addresses
     a_sum = db.exec(
