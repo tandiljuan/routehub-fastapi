@@ -255,13 +255,6 @@ async def delivery_lots_id_plan_post(
     for link in lot_db.fleet.vehicles:
         v_sum += link.quantity
 
-    route_stops_min = lot_db.route_stops_min if lot_db.route_stops_min else 0
-    route_stops_max = lot_db.route_stops_max if lot_db.route_stops_max else 0
-
-    # Total amount of min and max stops
-    t_stop_min = v_sum * route_stops_min
-    t_stop_max = v_sum * route_stops_max
-
     # Count amount of addresses
     a_sum = db.exec(
         select(func.count()).where(DeliveryLotDelivery.delivery_lot_id == lot_db.id)
@@ -269,6 +262,16 @@ async def delivery_lots_id_plan_post(
 
     limit_stop_min = math.ceil(a_sum * 0.95)
     limit_stop_max = math.floor(a_sum * 1.05)
+
+    route_stops_min = math.floor(limit_stop_min / v_sum)
+    route_stops_min = lot_db.route_stops_min if lot_db.route_stops_min else route_stops_min
+    route_stops_max = math.ceil(limit_stop_max / v_sum)
+    route_stops_max = lot_db.route_stops_max if lot_db.route_stops_max else route_stops_max
+
+    # Total amount of min and max stops
+    t_stop_min = v_sum * route_stops_min
+    t_stop_max = v_sum * route_stops_max
+
     if t_stop_min > limit_stop_min or t_stop_max < limit_stop_max:
         raise HTTPException(status_code=422, detail=f"Minimum stops ({t_stop_min}) must be at least 5% below the addresses ({a_sum}) and maximum stops ({t_stop_max}) must be at least %5 above them")
 
