@@ -255,10 +255,16 @@ async def delivery_lots_id_plan_post(
     for link in lot_db.fleet.vehicles:
         v_sum += link.quantity
 
+    if not v_sum:
+        raise HTTPException(status_code=422, detail=f"No vehicles have been loaded into the lot")
+
     # Count amount of addresses
     a_sum = db.exec(
         select(func.count()).where(DeliveryLotDelivery.delivery_lot_id == lot_db.id)
     ).one()
+
+    if not a_sum:
+        raise HTTPException(status_code=422, detail=f"No deliveries have been loaded into the lot")
 
     limit_stop_min = math.ceil(a_sum * 0.95)
     limit_stop_max = math.floor(a_sum * 1.05)
