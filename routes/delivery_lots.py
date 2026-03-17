@@ -255,9 +255,12 @@ async def delivery_lots_id_plan_post(
     for link in lot_db.fleet.vehicles:
         v_sum += link.quantity
 
+    route_stops_min = lot_db.route_stops_min if lot_db.route_stops_min else 0
+    route_stops_max = lot_db.route_stops_max if lot_db.route_stops_max else 0
+
     # Total amount of min and max stops
-    t_stop_min = v_sum * (lot_db.route_stops_min if lot_db.route_stops_min else 0)
-    t_stop_max = v_sum * (lot_db.route_stops_max if lot_db.route_stops_max else 0)
+    t_stop_min = v_sum * route_stops_min
+    t_stop_max = v_sum * route_stops_max
 
     # Count amount of addresses
     a_sum = db.exec(
@@ -280,8 +283,8 @@ async def delivery_lots_id_plan_post(
             overflow_vehicle=(True if 1 == priority else False),
         )
 
-        smin = lot_db.route_stops_min
-        smax = lot_db.route_stops_max
+        smin = route_stops_min
+        smax = route_stops_max
         if smin or smax:
             vq = PlanVehicleQuantity(
                 min=smin,
