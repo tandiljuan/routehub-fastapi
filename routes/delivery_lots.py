@@ -245,7 +245,7 @@ async def delivery_lots_id_plan_post(
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
     if DeliveryLotState.PROCESSING == lot_db.state:
-        raise HTTPException(status_code=409, detail="The plan is being processing")
+        raise HTTPException(status_code=409, detail="The plan is being processed")
 
     if DeliveryLotState.OPTIMIZING == lot_db.state:
         raise HTTPException(status_code=409, detail="The plan is being optimized")
