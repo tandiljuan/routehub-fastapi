@@ -278,7 +278,7 @@ async def delivery_lots_id_plan_post(
     t_stop_min = v_sum * route_stops_min
     t_stop_max = v_sum * route_stops_max
 
-    if t_stop_min >= limit_stop_min or t_stop_max <= limit_stop_max:
+    if t_stop_min > limit_stop_min or t_stop_max < limit_stop_max:
         raise HTTPException(status_code=422, detail=f"Minimum stops ({t_stop_min}) must be at least 5% below the addresses ({a_sum}) and maximum stops ({t_stop_max}) must be at least %5 above them")
 
     priority = 0
