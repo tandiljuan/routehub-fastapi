@@ -522,6 +522,9 @@ async def delivery_lots_id_plan_patch(
 
     routes = []
     for route in patch_data:
+        pth_db = db.get(DeliveryPath, route.id)
+        if not pth_db or pth_db.plan.lot.id != id:
+            raise HTTPException(status_code=404, detail=f"Route not found (id: '{route.id}')")
         waypoints = []
         for dlv_id in route.deliveries:
             dlv_db = db.get(Delivery, dlv_id)
