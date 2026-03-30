@@ -463,10 +463,9 @@ async def delivery_lots_id_plan_get(
             pth_db = db.get(DeliveryPath, route.route_id)
 
             # Loop old points and remove old relations
-            if pth_db.deliveries:
-                for link in pth_db.deliveries:
-                    db.delete(link)
-                    db.commit()
+            for link in pth_db.deliveries:
+                db.delete(link)
+                db.commit()
 
             # Loop new points and create new relations
             for waypoint in route.optimized_waypoints:
