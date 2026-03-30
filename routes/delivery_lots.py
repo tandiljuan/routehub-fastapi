@@ -245,7 +245,7 @@ async def delivery_lots_id_plan_post(
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
     if DeliveryLotState.PROCESSING == lot_db.state:
-        raise HTTPException(status_code=409, detail="The plan is being processing")
+        raise HTTPException(status_code=409, detail="The plan is being processed")
 
     if DeliveryLotState.OPTIMIZING == lot_db.state:
         raise HTTPException(status_code=409, detail="The plan is being optimized")
@@ -463,10 +463,9 @@ async def delivery_lots_id_plan_get(
             pth_db = db.get(DeliveryPath, route.route_id)
 
             # Loop old points and remove old relations
-            if pth_db.deliveries:
-                for link in pth_db.deliveries:
-                    db.delete(link)
-                    db.commit()
+            for link in pth_db.deliveries:
+                db.delete(link)
+                db.commit()
 
             # Loop new points and create new relations
             for waypoint in route.optimized_waypoints:
@@ -522,11 +521,15 @@ async def delivery_lots_id_plan_patch(
 
     routes = []
     for route in patch_data:
+        pth_db = db.get(DeliveryPath, route.id)
+        if not pth_db or pth_db.plan.lot.id != id:
+            raise HTTPException(status_code=404, detail=f"Route not found (id: '{route.id}')")
         waypoints = []
         for dlv_id in route.deliveries:
-            dlv_db = db.get(Delivery, dlv_id)
-            if not dlv_db:
+            dld_db = db.get(DeliveryLotDelivery, (id, dlv_id))
+            if not dld_db:
                 raise HTTPException(status_code=404, detail=f"Delivery not found (id: '{dlv_id}')")
+            dlv_db = dld_db.delivery
             p = DraftPackage(
                 package_id=str(dlv_db.id),
             )
