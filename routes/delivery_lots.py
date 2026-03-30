@@ -526,9 +526,10 @@ async def delivery_lots_id_plan_patch(
             raise HTTPException(status_code=404, detail=f"Route not found (id: '{route.id}')")
         waypoints = []
         for dlv_id in route.deliveries:
-            dlv_db = db.get(Delivery, dlv_id)
-            if not dlv_db:
+            dld_db = db.get(DeliveryLotDelivery, (id, dlv_id))
+            if not dld_db:
                 raise HTTPException(status_code=404, detail=f"Delivery not found (id: '{dlv_id}')")
+            dlv_db = dld_db.delivery
             p = DraftPackage(
                 package_id=str(dlv_db.id),
             )
