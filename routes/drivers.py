@@ -69,7 +69,7 @@ async def drivers_post(
         veh_db = db.get(Vehicle, veh_id)
         if veh_db:
             link = DriverVehicle(
-                fleet=drv_db,
+                driver=drv_db,
                 vehicle=veh_db,
                 quantity=veh_qty,
             )
@@ -153,7 +153,7 @@ async def drivers_id_patch(
         veh_db = db.get(Vehicle, veh_id)
         if veh_db:
             link = DriverVehicle(
-                fleet=drv_db,
+                driver=drv_db,
                 vehicle=veh_db,
                 quantity=veh_qty,
             )
