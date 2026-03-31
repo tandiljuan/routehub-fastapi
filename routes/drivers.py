@@ -73,6 +73,7 @@ async def drivers_post(
                 vehicle=veh_db,
                 quantity=veh_qty,
             )
+            db.add(link)
             drv_db.vehicles.append(link)
             db.add(drv_db)
             db.commit()
@@ -156,6 +157,7 @@ async def drivers_id_patch(
                 vehicle=veh_db,
                 quantity=veh_qty,
             )
+            db.add(link)
             drv_db.vehicles.append(link)
             db.add(drv_db)
             db.commit()
