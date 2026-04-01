@@ -552,6 +552,9 @@ async def delivery_lots_id_plan_patch(
                 waypoints=waypoints,
             ))
 
+    if not len(routes):
+        raise HTTPException(status_code=412, detail="No input data was provided for processing")
+
     geo = geo_rgx.findall(lot_db.milestone.location)
 
     draft = DraftSet(
