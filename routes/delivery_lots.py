@@ -546,10 +546,14 @@ async def delivery_lots_id_plan_patch(
                 lng=float(geo[1]),
                 packages=packages,
             ))
-        routes.append(DraftRoute(
-            route_id=str(route.id),
-            waypoints=waypoints,
-        ))
+        if len(waypoints):
+            routes.append(DraftRoute(
+                route_id=str(pth_db.id),
+                waypoints=waypoints,
+            ))
+
+    if not len(routes):
+        raise HTTPException(status_code=412, detail="No input data was provided for processing")
 
     geo = geo_rgx.findall(lot_db.milestone.location)
 
