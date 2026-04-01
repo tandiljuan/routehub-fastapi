@@ -546,6 +546,9 @@ async def delivery_lots_id_plan_patch(
                 route_id=str(pth_db.id),
                 waypoints=waypoints,
             ))
+        else:
+            db.delete(pth_db)
+            db.commit()
 
     if not len(routes):
         raise HTTPException(status_code=412, detail="No input data was provided for processing")
