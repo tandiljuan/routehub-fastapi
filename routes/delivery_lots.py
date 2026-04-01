@@ -2,12 +2,14 @@ import math
 import os
 import re
 from datetime import datetime
+from typing import Annotated
 from fastapi import (
     APIRouter,
     HTTPException,
     Request,
     Response,
 )
+from pydantic import Field
 from sqlalchemy import func
 from sqlmodel import select
 from models.database import Session as DbSession
@@ -506,7 +508,7 @@ async def delivery_lots_id_plan_get(
 async def delivery_lots_id_plan_patch(
     id: int,
     db: DbSession,
-    patch_data: list[DeliveryRouteUpdate],
+    patch_data: Annotated[list[DeliveryRouteUpdate], Field(min_length=1)],
 ):
     if not optimizer:
         raise HTTPException(status_code=500)
@@ -566,7 +568,10 @@ async def delivery_lots_id_plan_patch(
             db.commit()
 
     if not len(routes):
-        raise HTTPException(status_code=412, detail="No input data was provided for processing")
+        return {
+            "code": 202,
+            "message": "Routes processed",
+        }
 
     geo = geo_rgx.findall(lot_db.milestone.location)
 
