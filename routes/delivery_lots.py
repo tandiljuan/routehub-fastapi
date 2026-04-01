@@ -113,6 +113,7 @@ async def delivery_lots_post(
                 lot=lot_db,
                 delivery=dlv_db,
             )
+            db.add(link)
             lot_db.deliveries.append(link)
             db.add(lot_db)
             db.commit()
@@ -127,6 +128,7 @@ async def delivery_lots_post(
                 lot=lot_db,
                 driver=drv_db,
             )
+            db.add(link)
             lot_db.drivers.append(link)
             db.add(lot_db)
             db.commit()
@@ -190,6 +192,7 @@ async def delivery_lots_id_patch(
                     lot=lot_db,
                     delivery=dlv_db,
                 )
+                db.add(link)
                 lot_db.deliveries.append(link)
                 db.add(lot_db)
                 db.commit()
@@ -209,6 +212,7 @@ async def delivery_lots_id_patch(
                     lot=lot_db,
                     driver=drv_db,
                 )
+                db.add(link)
                 lot_db.drivers.append(link)
                 db.add(lot_db)
                 db.commit()
@@ -433,6 +437,7 @@ async def delivery_lots_id_plan_get(
                     delivery_id=w.packages[0].package_id,
                     delivery_order=w.order,
                 )
+                db.add(link)
                 pth_db.deliveries.append(link)
                 db.add(pth_db)
                 db.commit()
@@ -476,6 +481,7 @@ async def delivery_lots_id_plan_get(
                     delivery_id=dlv_id,
                     delivery_order=dlv_order,
                 )
+                db.add(link)
                 pth_db.deliveries.append(link)
                 db.add(pth_db)
                 db.commit()
