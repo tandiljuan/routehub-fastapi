@@ -521,16 +521,27 @@ async def delivery_lots_id_plan_patch(
     geo_rgx = re.compile(r'([+-]?[\d\.]+)')
 
     routes = []
+
+    # Iterate list of routes
     for route in patch_data:
+
+        # Get route (path) from DB
         pth_db = db.get(DeliveryPath, route.id)
         if not pth_db or pth_db.plan.lot.id != id:
             raise HTTPException(status_code=404, detail=f"Route not found (id: '{route.id}')")
+
         waypoints = []
+
+        # Iterate list of points
         for dlv_id in route.deliveries:
+
+            # Get point (relation) from DB
             dld_db = db.get(DeliveryLotDelivery, (id, dlv_id))
             if not dld_db:
                 raise HTTPException(status_code=404, detail=f"Delivery not found (id: '{dlv_id}')")
             dlv_db = dld_db.delivery
+
+            # Build waypoint object
             p = DraftPackage(
                 package_id=str(dlv_db.id),
             )
@@ -541,11 +552,15 @@ async def delivery_lots_id_plan_patch(
                 lng=float(geo[1]),
                 packages=packages,
             ))
+
+        # Append non empty list of waypoints
         if len(waypoints):
             routes.append(DraftRoute(
                 route_id=str(pth_db.id),
                 waypoints=waypoints,
             ))
+
+        # Remove empty routes (paths)
         else:
             db.delete(pth_db)
             db.commit()
