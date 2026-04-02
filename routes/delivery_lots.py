@@ -518,11 +518,6 @@ async def delivery_lots_id_plan_patch(
     if DeliveryLotState.PROCESSED != lot_db.state:
         raise HTTPException(status_code=409, detail="The plan must be 'PROCESSED' to be updated")
 
-    # Change Lot State
-    lot_db.state=DeliveryLotState.OPTIMIZING
-    db.add(lot_db)
-    db.commit()
-
     geo_rgx = re.compile(r'([+-]?[\d\.]+)')
 
     routes = []
@@ -566,6 +561,11 @@ async def delivery_lots_id_plan_patch(
     )
 
     draft_id = optimizer.send_route_draft(draft=draft)
+
+    # Change Lot State
+    lot_db.state=DeliveryLotState.OPTIMIZING
+    db.add(lot_db)
+    db.commit()
 
     plan_db = lot_db.plans[-1]
     plan_db.optimizer_id = draft_id
