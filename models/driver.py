@@ -10,6 +10,10 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from .types import (
+    Event,
+    GeoPoint,
+)
 from .company import Company
 from .vehicle import (
     Vehicle,
@@ -30,6 +34,10 @@ class DriverVehicleCreate(SQLModel):
 
 class DriverCreate(DriverBase):
     vehicles: list[DriverVehicleCreate] | None = None
+    work_schedules: list[Event] | None = None
+    start_point: GeoPoint | None = None
+    end_point: GeoPoint | None = None
+    work_areas: list[list[GeoPoint]] | None = None
 
 class DriverUpdate(DriverCreate):
     first_name: str | None = None
@@ -37,7 +45,7 @@ class DriverUpdate(DriverCreate):
 class DriverVehicleResponse(VehicleResponse):
     qty: int
 
-class DriverResponse(DriverCreate):
+class DriverResponse(DriverBase):
     id: str | int
     vehicles: list[DriverVehicleResponse] | None = None
 
