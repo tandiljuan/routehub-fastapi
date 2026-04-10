@@ -71,6 +71,7 @@ async def fleets_post(
                 vehicle=veh_db,
                 quantity=veh_qty,
             )
+            db.add(link)
             flt_db.vehicles.append(link)
             db.add(flt_db)
             db.commit()
@@ -150,6 +151,7 @@ async def fleets_id_patch(
                 vehicle=veh_db,
                 quantity=veh_qty,
             )
+            db.add(link)
             flt_db.vehicles.append(link)
             db.add(flt_db)
             db.commit()

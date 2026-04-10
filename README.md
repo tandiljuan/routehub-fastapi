@@ -33,6 +33,12 @@ Upgrade `pip` package manager.
 python -m pip install --upgrade pip
 ```
 
+In Termux on Android, export the Android API level environment variable required by `maturin`.
+
+```bash
+export ANDROID_API_LEVEL=21
+```
+
 Install python dependencies from `requirements.txt` file.
 
 ```bash
