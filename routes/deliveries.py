@@ -5,6 +5,7 @@ from fastapi import (
     Request,
     Response,
 )
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from pydantic import TypeAdapter
 from models.database import Session as DbSession
@@ -15,6 +16,8 @@ from models.delivery import (
     DeliveryResponse,
     DeliveryUpdate,
 )
+from models.delivery_lot import DeliveryLotDelivery
+from models.delivery_plan import DeliveryPathDelivery
 
 router = APIRouter(
     prefix="/deliveries",
@@ -66,20 +69,19 @@ async def deliveries_post(
 async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
     success = []
     failure = []
+    created: list[tuple[int, Delivery]] = []
 
     for index, item in enumerate(post_data):
         try:
             dlv_post = dlv_create_adapter.validate_python(item)
             dlv_dict = dlv_post.model_dump()
             dlv_dict['company_id'] = 1
+            # Keep optimizer package payload verbatim (dimensions, weight_kg, etc.)
+            if isinstance(item, dict) and item.get('extra') is not None:
+                dlv_dict['extra'] = item['extra']
             dlv_db = Delivery.model_validate(dlv_dict)
             db.add(dlv_db)
-            db.commit()
-            db.refresh(dlv_db)
-            success.append({
-                "idx": index,
-                "id": str(dlv_db.id),
-            })
+            created.append((index, dlv_db))
 
         except Exception as e:
             failure.append({
@@ -93,6 +95,12 @@ async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
                 ],
             })
 
+    if created:
+        db.flush()
+        for index, dlv_db in created:
+            success.append({"idx": index, "id": str(dlv_db.id)})
+
+    db.commit()
     return {"success": success, "failure": failure}
 
 @router.get(
@@ -134,6 +142,36 @@ async def deliveries_id_delete(id: int, db: DbSession):
     dlv_db = db.get(Delivery, id)
     if not dlv_db:
         raise HTTPException(status_code=404, detail="Delivery not found")
-    db.delete(dlv_db)
-    db.commit()
+
+    in_lot = db.exec(
+        select(DeliveryLotDelivery.delivery_lot_id)
+        .where(DeliveryLotDelivery.delivery_id == id)
+        .limit(1)
+    ).first()
+    if in_lot is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Delivery is linked to a lot; delete the lot first",
+        )
+
+    in_route = db.exec(
+        select(DeliveryPathDelivery.delivery_path_id)
+        .where(DeliveryPathDelivery.delivery_id == id)
+        .limit(1)
+    ).first()
+    if in_route is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Delivery is linked to a route plan; delete the lot first",
+        )
+
+    try:
+        db.delete(dlv_db)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Delivery is referenced by other records",
+        )
     return {"code": 200, "message": "Delivery Deleted"}

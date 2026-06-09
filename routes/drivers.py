@@ -53,30 +53,24 @@ async def drivers_post(
     # Create drivel object from dictionary
     drv_db = Driver.model_validate(drv_dict)
 
-    # Save new Driver in the database
     db.add(drv_db)
-    db.commit()
+    db.flush()
 
-    # Create relations between Driver and Vehicles
-    post_vehicles = post_data.vehicles or []
-    for v in post_vehicles:
+    for v in post_data.vehicles or []:
         veh_id = int(v.id)
         veh_qty = int(v.qty)
-
         if veh_qty < 1:
             continue
 
         veh_db = db.get(Vehicle, veh_id)
         if veh_db:
-            link = DriverVehicle(
-                driver=drv_db,
-                vehicle=veh_db,
+            db.add(DriverVehicle(
+                driver_id=drv_db.id,
+                vehicle_id=veh_db.id,
                 quantity=veh_qty,
-            )
-            db.add(link)
-            drv_db.vehicles.append(link)
-            db.add(drv_db)
-            db.commit()
+            ))
+
+    db.commit()
 
     # Set location header
     drv_url = request.url_for("drivers_id_get", id=drv_db.id)
@@ -123,44 +117,34 @@ async def drivers_id_patch(
     drv_db.sqlmodel_update(drv_dict)
 
     db.add(drv_db)
-    db.commit()
 
-    # Update relations between Driver and Vehicles
-    patch_vehicles = patch_data.vehicles or []
-    for v in patch_vehicles:
+    for v in patch_data.vehicles or []:
         veh_id = int(v.id)
         veh_qty = int(v.qty)
         exist = False
 
-        # Update existing relation
         for link in drv_db.vehicles:
             if link.vehicle_id == veh_id:
                 exist = True
-                if veh_qty != link.quantity:
-                    if veh_qty > 0:
-                        link.quantity = veh_qty
-                        db.add(link)
-                        db.commit()
-                    else:
-                        db.delete(link)
-                        db.commit()
+                if veh_qty > 0:
+                    link.quantity = veh_qty
+                    db.add(link)
+                else:
+                    db.delete(link)
                 break
 
         if exist or veh_qty < 1:
             continue
 
-        # Create new relation
         veh_db = db.get(Vehicle, veh_id)
         if veh_db:
-            link = DriverVehicle(
-                driver=drv_db,
-                vehicle=veh_db,
+            db.add(DriverVehicle(
+                driver_id=drv_db.id,
+                vehicle_id=veh_db.id,
                 quantity=veh_qty,
-            )
-            db.add(link)
-            drv_db.vehicles.append(link)
-            db.add(drv_db)
-            db.commit()
+            ))
+
+    db.commit()
 
     # Return (custom serialized) Driver
     db.refresh(drv_db)

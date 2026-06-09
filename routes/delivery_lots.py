@@ -10,18 +10,42 @@ from fastapi import (
     Response,
 )
 from pydantic import Field
-from sqlalchemy import func
+from sqlalchemy import delete, func
 from sqlmodel import select
+from libs.package_wire import (
+    build_package_id_to_delivery_id_map,
+    build_plan_address,
+    parse_lat_lng_from_destination,
+    resolve_delivery_id,
+)
+from libs.lot_persistence import (
+    bulk_link_lot_deliveries,
+    bulk_link_lot_drivers,
+    delete_delivery_lot,
+    delivery_links_for_route,
+    fetch_lot_delivery_rows,
+    load_delivery_lot_detail,
+    load_delivery_lot_for_plan,
+    load_delivery_plan_detail,
+    persist_processing_plan_routes,
+    replace_lot_deliveries,
+    replace_lot_drivers,
+    serialize_lot_created,
+    serialize_plan_poll,
+)
 from models.database import Session as DbSession
 from models.enum import DeliveryLotState
-from models.delivery import Delivery
 from models.delivery_lot import (
     DeliveryLot,
     DeliveryLotCreate,
     DeliveryLotDelivery,
-    DeliveryLotDriver,
     DeliveryLotResponse,
     DeliveryLotUpdate,
+)
+from models.lot_config import LotConfig, merge_config_data
+from libs.lot_plan_adapter import (
+    LotPlanConfigError,
+    build_wire_type_to_vehicle_id_map,
 )
 from models.delivery_plan import (
     DeliveryPath,
@@ -95,53 +119,22 @@ async def delivery_lots_post(
     db: DbSession,
     post_data: DeliveryLotCreate,
 ):
-    # Add Company ID to submitted data
-    lot_dict = post_data.model_dump()
+    lot_dict = post_data.model_dump(exclude={"deliveries", "drivers"})
     lot_dict['company_id'] = 1
     lot_dict = DeliveryLot.normalize_submitted_dict(lot_dict)
     lot_db = DeliveryLot.model_validate(lot_dict)
 
-    # Create Lot
     db.add(lot_db)
+    db.flush()
+
+    linked_count = bulk_link_lot_deliveries(db, lot_db.id, post_data.deliveries)
+    bulk_link_lot_drivers(db, lot_db.id, post_data.drivers or [])
     db.commit()
 
-    # Create relations between Lot and Deliveries
-    post_deliveries = post_data.deliveries or []
-    for dlv_id in post_deliveries:
-        dlv_id = int(dlv_id)
-        dlv_db = db.get(Delivery, dlv_id)
-        if dlv_db:
-            link = DeliveryLotDelivery(
-                lot=lot_db,
-                delivery=dlv_db,
-            )
-            db.add(link)
-            lot_db.deliveries.append(link)
-            db.add(lot_db)
-            db.commit()
-
-    # Create relations between Lot and Drivers
-    post_drivers = post_data.drivers or []
-    for drv_id in post_drivers:
-        drv_id = int(drv_id)
-        drv_db = db.get(Driver, drv_id)
-        if drv_db:
-            link = DeliveryLotDriver(
-                lot=lot_db,
-                driver=drv_db,
-            )
-            db.add(link)
-            lot_db.drivers.append(link)
-            db.add(lot_db)
-            db.commit()
-
-    # Set location header
     lot_url = request.url_for("delivery_lots_id_get", id=lot_db.id)
     response.headers["location"] = f"{lot_url}"
 
-    # Return (custom serialized) Lot
-    db.refresh(lot_db)
-    return lot_db.model_dump()
+    return serialize_lot_created(db, lot_db.id, delivery_count=linked_count)
 
 @router.get(
     "/{id}",
@@ -171,56 +164,29 @@ async def delivery_lots_id_patch(
     if not lot_db:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
-    # Update Lot
-    lot_dict = patch_data.model_dump(exclude_unset=True)
-    lot_dict = DeliveryLot.normalize_submitted_dict(lot_dict)
-    lot_db.sqlmodel_update(lot_dict)
-    db.add(lot_db)
+    patch_dict = patch_data.model_dump(
+        exclude_unset=True,
+        exclude={"deliveries", "drivers"},
+    )
+    if patch_dict:
+        patch_dict = DeliveryLot.normalize_submitted_dict(patch_dict)
+        if "config_data" in patch_dict:
+            patch_dict["config_data"] = merge_config_data(
+                lot_db.config_data,
+                patch_dict["config_data"],
+            )
+        lot_db.sqlmodel_update(patch_dict)
+        db.add(lot_db)
+
+    if patch_data.deliveries is not None:
+        replace_lot_deliveries(db, lot_db.id, patch_data.deliveries)
+
+    if patch_data.drivers is not None:
+        replace_lot_drivers(db, lot_db.id, patch_data.drivers)
+
     db.commit()
 
-    # Update relations between Lot and Deliveries
-    post_deliveries = patch_data.deliveries or []
-    if len(post_deliveries):
-        # Remove existing relation
-        for link in lot_db.deliveries:
-            db.delete(link)
-            db.commit()
-        # Load submitted data
-        for dlv_id in post_deliveries:
-            dlv_id = int(dlv_id)
-            dlv_db = db.get(Delivery, dlv_id)
-            if dlv_db:
-                link = DeliveryLotDelivery(
-                    lot=lot_db,
-                    delivery=dlv_db,
-                )
-                db.add(link)
-                lot_db.deliveries.append(link)
-                db.add(lot_db)
-                db.commit()
-
-    # Update relations between Lot and Drivers
-    post_drivers = patch_data.drivers or []
-    if len(post_drivers):
-        # Remove existing relation
-        for link in lot_db.drivers:
-            db.delete(link)
-            db.commit()
-        for drv_id in post_deliveries:
-            drv_id = int(drv_id)
-            drv_db = db.get(Driver, drv_id)
-            if drv_db:
-                link = DeliveryLotDriver(
-                    lot=lot_db,
-                    driver=drv_db,
-                )
-                db.add(link)
-                lot_db.drivers.append(link)
-                db.add(lot_db)
-                db.commit()
-
-    # Return (custom serialized) Lot
-    db.refresh(lot_db)
+    lot_db = load_delivery_lot_detail(db, id)
     return lot_db.model_dump()
 
 @router.delete("/{id}")
@@ -228,10 +194,8 @@ async def delivery_lots_id_delete(
     id: int,
     db: DbSession,
 ):
-    lot_db = db.get(DeliveryLot, id)
-    if not lot_db:
+    if not delete_delivery_lot(db, id):
         raise HTTPException(status_code=404, detail="Delivery lot not found")
-    db.delete(lot_db)
     db.commit()
     return {"code": 200, "message": "Delivery lot Deleted"}
 
@@ -376,13 +340,8 @@ async def delivery_lots_id_plan_post(
         "delivery_lot_id": lot_db.id,
         "optimizer_id": plan_id,
     })
-
-    # Create Plan
     db.add(plan_db)
-    db.commit()
-
-    # Update Lot
-    lot_db.state=DeliveryLotState.PROCESSING
+    lot_db.state = DeliveryLotState.PROCESSING
     db.add(lot_db)
     db.commit()
 
@@ -420,73 +379,61 @@ async def delivery_lots_id_plan_get(
         plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
 
         if "completed" != plan_result.status:
-            # Return (custom serialized) Plan
-            return plan_db.model_dump()
+            return serialize_plan_poll(lot_db.state)
 
-        # Create paths (routes)
-        for r in plan_result.routes:
-            pth_db = DeliveryPath(
-                delivery_plan_id=plan_db.id,
-                milestone_id=lot_db.milestone.id,
-                vehicle_id=r.vehicle_type,
-            )
-            db.add(pth_db)
-            db.commit()
-            # Create relations between Path and Deliveries
-            for w in r.optimized_waypoints:
-                link = DeliveryPathDelivery(
-                    delivery_path_id=pth_db.id,
-                    delivery_id=w.packages[0].package_id,
-                    delivery_order=w.order,
-                )
-                db.add(link)
-                pth_db.deliveries.append(link)
-                db.add(pth_db)
-                db.commit()
+        package_map = build_package_id_to_delivery_id_map(
+            fetch_lot_delivery_rows(db, lot_db.id)
+        )
+        lot_with_fleet = load_delivery_lot_for_plan(db, lot_db.id)
+        wire_vehicle_map = build_wire_type_to_vehicle_id_map(lot_with_fleet.fleet.vehicles)
+        persist_processing_plan_routes(
+            db,
+            plan_db,
+            lot_db.milestone.id,
+            plan_result.routes,
+            package_to_delivery=package_map,
+            wire_type_to_vehicle=wire_vehicle_map,
+        )
 
     elif DeliveryLotState.OPTIMIZING == lot_db.state:
         draft_result = optimizer.get_draft_result(task_id=plan_db.optimizer_id)
 
         if "completed" != draft_result.status:
-            # Return (custom serialized) Plan
-            return plan_db.model_dump()
+            return serialize_plan_poll(lot_db.state)
 
         query = select(DeliveryPath, DeliveryPathDelivery)
         query = query.join(DeliveryPathDelivery)
 
+        package_map = build_package_id_to_delivery_id_map(
+            fetch_lot_delivery_rows(db, lot_db.id)
+        )
         for route in draft_result.routes:
-            # Loop new points and remove old relations
             for waypoint in route.optimized_waypoints:
-                dlv_id = waypoint.packages[0].package_id
+                dlv_id = resolve_delivery_id(
+                    package_map, waypoint.packages[0].package_id,
+                )
                 dlv_qry = query.where(
                     DeliveryPath.delivery_plan_id == plan_db.id,
                     DeliveryPathDelivery.delivery_id == dlv_id,
                 )
                 link = db.exec(dlv_qry).first()
-                if None != link:
+                if link is not None:
                     db.delete(link[-1])
-                    db.commit()
 
             pth_db = db.get(DeliveryPath, route.route_id)
-
-            # Loop old points and remove old relations
-            for link in pth_db.deliveries:
-                db.delete(link)
-                db.commit()
-
-            # Loop new points and create new relations
-            for waypoint in route.optimized_waypoints:
-                dlv_id = waypoint.packages[0].package_id
-                dlv_order = waypoint.order
-                link = DeliveryPathDelivery(
-                    delivery_path_id=pth_db.id,
-                    delivery_id=dlv_id,
-                    delivery_order=dlv_order,
+            db.exec(
+                delete(DeliveryPathDelivery).where(
+                    DeliveryPathDelivery.delivery_path_id == pth_db.id
                 )
-                db.add(link)
-                pth_db.deliveries.append(link)
-                db.add(pth_db)
-                db.commit()
+            )
+
+            links = delivery_links_for_route(
+                pth_db.id,
+                route,
+                package_map,
+            )
+            db.add_all(links)
+            db.commit()
 
     else:
         # Return (custom serialized) Plan
