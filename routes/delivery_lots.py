@@ -82,6 +82,7 @@ router = APIRouter(
 
 @router.get(
     "",
+    summary="List lots",
     response_model=list[DeliveryLotResponse],
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -95,6 +96,7 @@ async def delivery_lots_get(db: DbSession):
 
 @router.post(
     "",
+    summary="Create lot",
     response_model=DeliveryLotResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -126,6 +128,7 @@ async def delivery_lots_post(
 @router.get(
     "/{id}",
     name="delivery_lots_id_get",
+    summary="Get lot",
     response_model=DeliveryLotResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -138,6 +141,7 @@ async def delivery_lots_id_get(id: int, db: DbSession):
 
 @router.patch(
     "/{id}",
+    summary="Update lot",
     response_model=DeliveryLotResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -176,7 +180,7 @@ async def delivery_lots_id_patch(
     lot_db = load_delivery_lot_detail(db, id)
     return lot_db.model_dump()
 
-@router.delete("/{id}")
+@router.delete("/{id}", summary="Delete lot")
 async def delivery_lots_id_delete(
     id: int,
     db: DbSession,
@@ -189,6 +193,8 @@ async def delivery_lots_id_delete(
 @router.post(
     "/{id}/plan",
     status_code=202,
+    summary="Queue plan",
+    description="No body. Sends lot to the optimizer.",
 )
 async def delivery_lots_id_plan_post(
     id: int,
@@ -266,6 +272,7 @@ async def delivery_lots_id_plan_post(
 
 @router.get(
     "/{id}/plan",
+    summary="Get plan",
     response_model=DeliveryPlanResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -361,6 +368,7 @@ async def delivery_lots_id_plan_get(
 
 @router.patch(
     "/{id}/plan",
+    summary="Re-optimize routes",
     status_code=202,
 )
 async def delivery_lots_id_plan_patch(

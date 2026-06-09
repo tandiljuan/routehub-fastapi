@@ -22,10 +22,18 @@ app = FastAPI(
     redoc_url = "/redoc" if IS_LCL else None,
     openapi_url = "/openapi.json" if IS_LCL else None,
     title = "RouteHub",
+    description = "Route planning REST API.",
     swagger_ui_parameters =  {
-        # Make the operations in the docs UI closed by default
         "docExpansion": "none",
     },
+    openapi_tags=[
+        {"name": "vehicles", "description": "Vehicle catalog."},
+        {"name": "fleets", "description": "Fleet composition and per-type run_profile."},
+        {"name": "drivers", "description": "Drivers and vehicle assignments."},
+        {"name": "milestones", "description": "Depots and route origins."},
+        {"name": "deliveries", "description": "Delivery stops."},
+        {"name": "lots", "description": "Delivery lots, optimizer plans, and routes."},
+    ],
     dependencies=[Depends(auth)],
 )
 

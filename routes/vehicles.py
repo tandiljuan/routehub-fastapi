@@ -20,6 +20,7 @@ router = APIRouter(
 
 @router.get(
     "",
+    summary="List vehicles",
     response_model=list[VehicleResponse],
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -30,6 +31,7 @@ async def vehicles_get(db: DbSession):
 
 @router.post(
     "",
+    summary="Create vehicle",
     response_model=VehicleResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -54,6 +56,7 @@ async def vehicles_post(
 @router.get(
     "/{id}",
     name="vehicles_id_get",
+    summary="Get vehicle",
     response_model=VehicleResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -66,6 +69,7 @@ async def vehicles_id_get(id: int, db: DbSession):
 
 @router.patch(
     "/{id}",
+    summary="Update vehicle",
     response_model=VehicleResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -81,7 +85,7 @@ async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate):
     db.refresh(veh_db)
     return veh_db
 
-@router.delete("/{id}")
+@router.delete("/{id}", summary="Delete vehicle")
 async def vehicles_id_delete(id: int, db: DbSession):
     veh_db = db.get(Vehicle, id)
     if not veh_db:

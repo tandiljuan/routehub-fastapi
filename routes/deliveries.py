@@ -29,6 +29,7 @@ dlv_create_adapter = TypeAdapter(DeliveryCreate)
 
 @router.get(
     "",
+    summary="List deliveries",
     response_model=list[DeliveryResponse],
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -39,6 +40,7 @@ async def deliveries_get(db: DbSession):
 
 @router.post(
     "",
+    summary="Create delivery",
     response_model=DeliveryResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -62,6 +64,7 @@ async def deliveries_post(
 
 @router.post(
     "/bulk",
+    summary="Create deliveries in bulk",
     response_model=DeliveryBulkResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -106,6 +109,7 @@ async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
 @router.get(
     "/{id}",
     name="deliveries_id_get",
+    summary="Get delivery",
     response_model=DeliveryResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -118,6 +122,7 @@ async def deliveries_id_get(id: int, db: DbSession):
 
 @router.patch(
     "/{id}",
+    summary="Update delivery",
     response_model=DeliveryResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -137,7 +142,7 @@ async def deliveries_id_patch(
     db.refresh(dlv_db)
     return dlv_db
 
-@router.delete("/{id}")
+@router.delete("/{id}", summary="Delete delivery")
 async def deliveries_id_delete(id: int, db: DbSession):
     dlv_db = db.get(Delivery, id)
     if not dlv_db:

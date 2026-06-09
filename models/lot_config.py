@@ -3,6 +3,7 @@ from typing import Any
 
 from sqlalchemy import JSON
 from sqlalchemy.types import TypeDecorator
+from pydantic import ConfigDict
 from sqlmodel import SQLModel
 
 from .enum import LengthUnit, TimeUnit, VolumeUnit, WeightUnit
@@ -83,7 +84,7 @@ class ScheduleConfig(SQLModel):
     time_windows: TimeWindowsConfig | None = None
 
 class LotConfig(SQLModel):
-    model_config = {"extra": "ignore"}
+    model_config = ConfigDict(extra="ignore")
 
     vehicles: VehiclesConfig | None = None
     rebalance: RebalanceConfig | None = None

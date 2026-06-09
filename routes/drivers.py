@@ -22,6 +22,7 @@ router = APIRouter(
 
 @router.get(
     "",
+    summary="List drivers",
     response_model=list[DriverResponse],
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -35,6 +36,7 @@ async def fleets_get(db: DbSession):
 
 @router.post(
     "",
+    summary="Create driver",
     response_model=DriverResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -83,6 +85,7 @@ async def drivers_post(
 @router.get(
     "/{id}",
     name="drivers_id_get",
+    summary="Get driver",
     response_model=DriverResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -95,6 +98,7 @@ async def drivers_id_get(id: int, db: DbSession):
 
 @router.patch(
     "/{id}",
+    summary="Update driver",
     response_model=DriverResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -150,7 +154,7 @@ async def drivers_id_patch(
     db.refresh(drv_db)
     return drv_db.model_dump()
 
-@router.delete("/{id}")
+@router.delete("/{id}", summary="Delete driver")
 async def drivers_id_delete(id: int, db: DbSession):
     drv_db = db.get(Driver, id)
     if not drv_db:

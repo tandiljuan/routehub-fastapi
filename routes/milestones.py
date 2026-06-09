@@ -20,6 +20,7 @@ router = APIRouter(
 
 @router.get(
     "",
+    summary="List milestones",
     response_model=list[MilestoneResponse],
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -30,6 +31,7 @@ async def milestones_get(db: DbSession):
 
 @router.post(
     "",
+    summary="Create milestone",
     response_model=MilestoneResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -54,6 +56,7 @@ async def milestones_post(
 @router.get(
     "/{id}",
     name="milestones_id_get",
+    summary="Get milestone",
     response_model=MilestoneResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -66,6 +69,7 @@ async def milestones_id_get(id: int, db: DbSession):
 
 @router.patch(
     "/{id}",
+    summary="Update milestone",
     response_model=MilestoneResponse,
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
@@ -81,7 +85,7 @@ async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdat
     db.refresh(mst_db)
     return mst_db
 
-@router.delete("/{id}")
+@router.delete("/{id}", summary="Delete milestone")
 async def milestones_id_delete(id: int, db: DbSession):
     mst_db = db.get(Milestone, id)
     if not mst_db:
