@@ -1,5 +1,6 @@
 import json
 import requests
+from libs.plan_wire import plan_to_wire_payload
 from .models import (
     DraftSet,
     PlanContext,
@@ -14,7 +15,7 @@ class Optimizer():
         self.auth = auth
 
     def send_route_plan(self, plan: PlanContext) -> str:
-        payload = plan.model_dump(serialize_as_any=True)
+        payload = plan_to_wire_payload(plan)
         url = f"{self.host}:{self.port}/route-optimizer-app/routes"
         headers = {'api-key': self.auth} if self.auth else {}
         r = requests.post(url, json=payload, headers=headers)

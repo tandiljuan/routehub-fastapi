@@ -5,3 +5,4 @@ class PlanAddress(BaseModel):
     lat: float
     lng: float
     packages: list[PlanPackage]
+    zone: str | None = None

@@ -5,6 +5,8 @@ class PlanClustering(BaseModel):
     size_cluster_tolerance: float = 0.2
     min_size_cluster: int
     max_size_cluster: int
+    allow_subclustering_by_volume: bool = True
+    volume_divide_threshold: float = 1.4
     allow_subclustering_by_capacity: bool = True
     capacity_divide_threshold: float = 1.5
     force_vehicles_fleet_match: bool = True

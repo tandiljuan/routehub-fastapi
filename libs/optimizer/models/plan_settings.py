@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 class Preprocessing(BaseModel):
     enable_address_preprocessing: bool = True
-    preprocessing_batch_size: int = 150 # 3 * max_size_cluster
+    preprocessing_batch_size: int = 500
     max_distance_km: float = 200.0
 
 class Hardware(BaseModel):
@@ -13,6 +13,5 @@ class Hardware(BaseModel):
     routing_strategy: str = "GRANULAR_ROUTING"
 
 class PlanSettings(BaseModel):
-    generate_maps: bool = False
     preprocessing: Preprocessing = Preprocessing()
     hardware: Hardware = Hardware()
