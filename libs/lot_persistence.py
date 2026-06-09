@@ -1,5 +1,3 @@
-"""Bulk DB helpers for delivery lots and plans."""
-
 from __future__ import annotations
 
 from sqlalchemy import delete, func, insert
@@ -32,7 +30,7 @@ def bulk_link_lot_deliveries(db: Session, lot_id: int, raw_ids: list[str]) -> in
         if dlv_id in existing
     ]
     if rows:
-        db.exec(insert(DeliveryLotDelivery), rows)
+        db.exec(insert(DeliveryLotDelivery), params=rows)
     return len(rows)
 
 
@@ -48,7 +46,7 @@ def bulk_link_lot_drivers(db: Session, lot_id: int, raw_ids: list[str]) -> int:
         if drv_id in existing
     ]
     if rows:
-        db.exec(insert(DeliveryLotDriver), rows)
+        db.exec(insert(DeliveryLotDriver), params=rows)
     return len(rows)
 
 
@@ -164,7 +162,9 @@ def serialize_lot_created(db: Session, lot_id: int, delivery_count: int | None =
         ),
         "vehicle_limits": vehicle_limits,
         "route_limits": route_limits,
-        "config": lot.config_data,
+        "config": (
+            lot.config_data.model_dump(mode="json") if lot.config_data else None
+        ),
     }
 
 
