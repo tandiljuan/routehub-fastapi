@@ -1,7 +1,5 @@
 import math
 import os
-import re
-from datetime import datetime
 from typing import Annotated
 from fastapi import (
     APIRouter,
@@ -42,11 +40,12 @@ from models.delivery_lot import (
     DeliveryLotResponse,
     DeliveryLotUpdate,
 )
-from models.lot_config import LotConfig, merge_config_data
+from models.lot_config import LotConfig, merge_lot_config
 from libs.lot_plan_adapter import (
     LotPlanConfigError,
     build_wire_type_to_vehicle_id_map,
 )
+from libs.plan_build import build_plan_context_for_lot, compute_fallback_stops
 from models.delivery_plan import (
     DeliveryPath,
     DeliveryPathDelivery,
@@ -54,7 +53,6 @@ from models.delivery_plan import (
     DeliveryPlanResponse,
     DeliveryRouteUpdate,
 )
-from models.driver import Driver
 from libs.optimizer import Optimizer
 from libs.optimizer.models import (
     DraftPackage,
@@ -62,17 +60,6 @@ from libs.optimizer.models import (
     DraftRouting,
     DraftSet,
     DraftWaypoint,
-    PlanAddress,
-    PlanClustering,
-    PlanContext,
-    PlanPackage,
-    PlanRebalance,
-    PlanRouting,
-    PlanSettings,
-    PlanSettingsPreprocessing,
-    PlanVehicle,
-    PlanVehicleDistance,
-    PlanVehicleQuantity,
 )
 
 OPTIMIZER_HOST = os.environ.get("OPTIMIZER_HOST")
@@ -144,7 +131,7 @@ async def delivery_lots_post(
     response_model_exclude_none=True,
 )
 async def delivery_lots_id_get(id: int, db: DbSession):
-    lot_db = db.get(DeliveryLot, id)
+    lot_db = load_delivery_lot_detail(db, id)
     if not lot_db:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
     return lot_db.model_dump()
@@ -171,7 +158,7 @@ async def delivery_lots_id_patch(
     if patch_dict:
         patch_dict = DeliveryLot.normalize_submitted_dict(patch_dict)
         if "config_data" in patch_dict:
-            patch_dict["config_data"] = merge_config_data(
+            patch_dict["config_data"] = merge_lot_config(
                 lot_db.config_data,
                 patch_dict["config_data"],
             )
@@ -210,7 +197,7 @@ async def delivery_lots_id_plan_post(
     if not optimizer:
         raise HTTPException(status_code=500)
 
-    lot_db = db.get(DeliveryLot, id)
+    lot_db = load_delivery_lot_for_plan(db, id)
     if not lot_db:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
 
@@ -220,7 +207,6 @@ async def delivery_lots_id_plan_post(
     if DeliveryLotState.OPTIMIZING == lot_db.state:
         raise HTTPException(status_code=409, detail="The plan is being optimized")
 
-    # Count amount of vehicles
     v_sum = 0
     for link in lot_db.fleet.vehicles:
         v_sum += link.quantity
@@ -228,7 +214,6 @@ async def delivery_lots_id_plan_post(
     if not v_sum:
         raise HTTPException(status_code=422, detail=f"No vehicles have been loaded into the lot")
 
-    # Count amount of addresses
     a_sum = db.exec(
         select(func.count()).where(DeliveryLotDelivery.delivery_lot_id == lot_db.id)
     ).one()
@@ -239,100 +224,29 @@ async def delivery_lots_id_plan_post(
     limit_stop_min = math.ceil(a_sum * 0.95)
     limit_stop_max = math.floor(a_sum * 1.05)
 
-    route_stops_min = math.floor(limit_stop_min / v_sum)
-    route_stops_min = lot_db.route_stops_min if lot_db.route_stops_min else route_stops_min
-    route_stops_max = math.ceil(limit_stop_max / v_sum)
-    route_stops_max = lot_db.route_stops_max if lot_db.route_stops_max else route_stops_max
+    route_stops_min, route_stops_max = compute_fallback_stops(a_sum, v_sum, lot_db)
 
-    # Total amount of min and max stops
     t_stop_min = v_sum * route_stops_min
     t_stop_max = v_sum * route_stops_max
 
     if t_stop_min > limit_stop_min or t_stop_max < limit_stop_max:
         raise HTTPException(status_code=422, detail=f"Minimum stops ({t_stop_min}) must be at least 5% below the addresses ({a_sum}) and maximum stops ({t_stop_max}) must be at least %5 above them")
 
-    priority = 0
-    vehicles = []
-    for link in lot_db.fleet.vehicles:
-        priority += 1
-        pv = PlanVehicle(
-            type=str(link.vehicle.id),
-            quantity=link.quantity,
-            priority_vehicle=priority,
-            overflow_vehicle=(True if 1 == priority else False),
+    lot_config = lot_db.config_data or LotConfig()
+
+    delivery_rows = fetch_lot_delivery_rows(db, lot_db.id)
+
+    try:
+        plan = build_plan_context_for_lot(
+            lot_db=lot_db,
+            lot_config=lot_config,
+            fleet_links=lot_db.fleet.vehicles,
+            delivery_rows=delivery_rows,
+            fallback_stops_min=route_stops_min,
+            fallback_stops_max=route_stops_max,
         )
-
-        smin = route_stops_min
-        smax = route_stops_max
-        if smin or smax:
-            vq = PlanVehicleQuantity(
-                min=smin,
-                max=smax,
-            )
-            pv.deliveries_qty = vq
-
-        lmin = lot_db.route_length_min
-        lmax = lot_db.route_length_max
-        if smin or smax:
-            vl = PlanVehicleDistance(
-                min_km=lmin,
-                max_km=lmax,
-            )
-            pv.distance_limits = vl
-
-        vehicles.append(pv)
-
-    geo_rgx = re.compile(r'([+-]?[\d\.]+)')
-
-    addresses = []
-    for link in lot_db.deliveries:
-        dlv = link.delivery
-
-        p = PlanPackage(
-            package_id=str(dlv.id),
-        )
-        packages = [p]
-
-        geo = geo_rgx.findall(dlv.destination)
-
-        addresses.append(PlanAddress(
-            lat=float(geo[0]),
-            lng=float(geo[1]),
-            packages=packages,
-        ))
-
-    max_size_cluster = math.ceil(a_sum / v_sum)
-    min_size_cluster = math.floor(max_size_cluster / 2)
-    clustering = PlanClustering(
-        min_size_cluster=min_size_cluster,
-        max_size_cluster=max_size_cluster,
-    )
-
-    routing = PlanRouting()
-    rebalance = PlanRebalance()
-
-    preprocessing = PlanSettingsPreprocessing(
-        preprocessing_batch_size = max_size_cluster * 3,
-    )
-
-    settings = PlanSettings(
-        preprocessing = preprocessing,
-    )
-
-    geo = geo_rgx.findall(lot_db.milestone.location)
-
-    plan = PlanContext(
-        date=datetime.today().strftime('%Y-%m-%d'),
-        origin_lat=float(geo[0]),
-        origin_lng=float(geo[1]),
-        tag=lot_db.milestone.name.strip().replace(' ', '_').upper(),
-        vehicles=vehicles,
-        addresses=addresses,
-        clustering=clustering,
-        routing=routing,
-        rebalance=rebalance,
-        settings=settings,
-    )
+    except LotPlanConfigError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     plan_id = optimizer.send_route_plan(plan=plan)
 
@@ -433,19 +347,16 @@ async def delivery_lots_id_plan_get(
                 package_map,
             )
             db.add_all(links)
-            db.commit()
 
     else:
-        # Return (custom serialized) Plan
+        plan_db = load_delivery_plan_detail(db, plan_db.id)
         return plan_db.model_dump()
 
-    # Update Lot
-    lot_db.state=DeliveryLotState.PROCESSED
+    lot_db.state = DeliveryLotState.PROCESSED
     db.add(lot_db)
     db.commit()
 
-    # Return (custom serialized) Plan
-    db.refresh(plan_db)
+    plan_db = load_delivery_plan_detail(db, plan_db.id)
     return plan_db.model_dump()
 
 @router.patch(
@@ -466,8 +377,6 @@ async def delivery_lots_id_plan_patch(
 
     if DeliveryLotState.PROCESSED != lot_db.state:
         raise HTTPException(status_code=409, detail="The plan must be 'PROCESSED' to be updated")
-
-    geo_rgx = re.compile(r'([+-]?[\d\.]+)')
 
     routes = []
 
@@ -490,16 +399,17 @@ async def delivery_lots_id_plan_patch(
                 raise HTTPException(status_code=404, detail=f"Delivery not found (id: '{dlv_id}')")
             dlv_db = dld_db.delivery
 
-            # Build waypoint object
-            p = DraftPackage(
-                package_id=str(dlv_db.id),
+            addr = build_plan_address(
+                dlv_db.destination,
+                dlv_db.extra,
+                delivery_id=int(dlv_db.id),
             )
-            packages = [p]
-            geo = geo_rgx.findall(dlv_db.destination)
             waypoints.append(DraftWaypoint(
-                lat=float(geo[0]),
-                lng=float(geo[1]),
-                packages=packages,
+                lat=addr.lat,
+                lng=addr.lng,
+                packages=[
+                    DraftPackage(package_id=p.package_id) for p in addr.packages
+                ],
             ))
 
         # Append non empty list of waypoints
@@ -509,22 +419,21 @@ async def delivery_lots_id_plan_patch(
                 waypoints=waypoints,
             ))
 
-        # Remove empty routes (paths)
         else:
             db.delete(pth_db)
-            db.commit()
 
     if not len(routes):
+        db.commit()
         return {
             "code": 202,
             "message": "Routes processed",
         }
 
-    geo = geo_rgx.findall(lot_db.milestone.location)
+    origin_lat, origin_lng = parse_lat_lng_from_destination(lot_db.milestone.location)
 
     draft = DraftSet(
-        origin_lat=float(geo[0]),
-        origin_lng=float(geo[1]),
+        origin_lat=origin_lat,
+        origin_lng=origin_lng,
         tag=lot_db.milestone.name.strip().replace(' ', '_').upper(),
         optimization_params=DraftRouting(),
         routes=routes,
@@ -532,15 +441,10 @@ async def delivery_lots_id_plan_patch(
 
     draft_id = optimizer.send_route_draft(draft=draft)
 
-    # Change Lot State
-    lot_db.state=DeliveryLotState.OPTIMIZING
+    lot_db.state = DeliveryLotState.OPTIMIZING
     db.add(lot_db)
-    db.commit()
-
     plan_db = lot_db.plans[-1]
     plan_db.optimizer_id = draft_id
-
-    # Update Plan
     db.add(plan_db)
     db.commit()
 
