@@ -10,6 +10,7 @@ from .enum import (
     VehicleConsumptionUnit,
     VehicleEngineType,
     VolumeUnit,
+    WeightUnit,
 )
 from .company import Company
 
@@ -17,6 +18,8 @@ class VehicleBase(SQLModel):
     name: str
     volume: int | None = Field(default=None)
     volume_unit: VolumeUnit | None = Field(default=None, sa_column=Column(Enum(VolumeUnit)))
+    weight: int | None = Field(default=None)
+    weight_unit: WeightUnit | None = Field(default=None, sa_column=Column(Enum(WeightUnit)))
     consumption: int | None = Field(default=None)
     consumption_unit: VehicleConsumptionUnit | None = Field(default=None, sa_column=Column(Enum(VehicleConsumptionUnit)))
     category_type: VehicleCategoryType | None = Field(default=None, sa_column=Column(Enum(VehicleCategoryType)))

@@ -48,7 +48,7 @@ class DeliveryPlan(SQLModel, table=True):
     delivery_lot_id: int = Field(foreign_key="delivery_lot.id")
     optimizer_id: str
 
-    lot: DeliveryLot = Relationship()
+    lot: DeliveryLot = Relationship(back_populates="plans")
     paths: list["DeliveryPath"] = Relationship(back_populates="plan", passive_deletes="all")
 
     @model_serializer(mode='wrap')

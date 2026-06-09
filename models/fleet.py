@@ -4,11 +4,18 @@ from pydantic import (
     model_serializer,
 )
 from sqlmodel import (
+    Column,
     Field,
     Relationship,
     SQLModel,
 )
 from .company import Company
+from .lot_config import (
+    FleetRunProfile,
+    FleetRunProfileJSON,
+    VehicleBehaviorConfig,
+    VehicleRouteConfig,
+)
 from .vehicle import (
     Vehicle,
     VehicleResponse,
@@ -20,6 +27,13 @@ class FleetBase(SQLModel):
 class FleetVehicleCreate(SQLModel):
     qty: int
     id: str
+    route: VehicleRouteConfig | None = None
+    behavior: VehicleBehaviorConfig | None = None
+
+    def to_run_profile(self) -> FleetRunProfile | None:
+        if self.route is None and self.behavior is None:
+            return None
+        return FleetRunProfile(route=self.route, behavior=self.behavior)
 
 class FleetCreate(FleetBase):
     vehicles: list[FleetVehicleCreate]
@@ -30,6 +44,8 @@ class FleetUpdate(FleetCreate):
 
 class FleetVehicleResponse(VehicleResponse):
     qty: int
+    route: VehicleRouteConfig | None = None
+    behavior: VehicleBehaviorConfig | None = None
 
 class FleetResponse(FleetCreate):
     id: str | int
@@ -55,6 +71,11 @@ class Fleet(FleetBase, table=True):
             for link in self.vehicles:
                 v = link.vehicle.model_dump()
                 v['qty'] = link.quantity
+                if link.run_profile:
+                    if link.run_profile.route is not None:
+                        v['route'] = link.run_profile.route.model_dump(exclude_none=True)
+                    if link.run_profile.behavior is not None:
+                        v['behavior'] = link.run_profile.behavior.model_dump(exclude_none=True)
                 vehicles.append(v)
             serialized['vehicles'] = vehicles
         return serialized
@@ -65,6 +86,7 @@ class FleetVehicle(SQLModel, table=True):
     fleet_id: int | None = Field(default=None, foreign_key="fleet.id", primary_key=True)
     vehicle_id: int | None = Field(default=None, foreign_key="vehicle.id", primary_key=True)
     quantity: int
+    run_profile: FleetRunProfile | None = Field(default=None, sa_column=Column(FleetRunProfileJSON))
 
     fleet: Fleet = Relationship(back_populates="vehicles")
     vehicle: Vehicle = Relationship()

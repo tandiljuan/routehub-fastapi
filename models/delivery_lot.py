@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from pydantic import (
     SerializerFunctionWrapHandler as sfWrapHandler,
     field_serializer,
@@ -20,6 +22,10 @@ from .delivery import (
     DeliveryResponse,
     Delivery,
 )
+# avoid circular injection
+if TYPE_CHECKING:
+    from .delivery_plan import DeliveryPlan
+
 from .driver import (
     DriverResponse,
     Driver,
@@ -32,6 +38,7 @@ from .milestone import (
     MilestoneResponse,
     Milestone,
 )
+from .lot_config import LotConfig, LotConfigJSON, config_to_lot_config
 
 class VehicleLimits(SQLModel):
     volume_min: int | None = None
@@ -58,6 +65,7 @@ class DeliveryLotCreate(DeliveryLotBase):
     deliveries: list[str]
     fleet_id: str
     drivers: list[str] | None = None
+    config: LotConfig | None = None
 
 class DeliveryLotUpdate(DeliveryLotCreate):
     milestone_id: str | None = None
@@ -69,8 +77,10 @@ class DeliveryLotResponse(DeliveryLotBase):
     state: DeliveryLotState
     milestone: MilestoneResponse
     deliveries: list[DeliveryResponse]
+    delivery_count: int | None = None
     fleet: FleetResponse | None = None
     drivers: list[DriverResponse] | None = None
+    config: LotConfig | None = None
 
     @field_serializer('id', when_used='json')
     def serialize_id_to_str(self, id: int):
@@ -96,6 +106,7 @@ class DeliveryLot(SQLModel, table=True):
     route_time_min: int | None = Field(default=None)
     route_time_max: int | None = Field(default=None)
     route_time_unit: TimeUnit | None = Field(default=None, sa_column=Column(Enum(TimeUnit)))
+    config_data: LotConfig | None = Field(default=None, sa_column=Column(LotConfigJSON))
 
     milestone: Milestone | None = Relationship()
     fleet: Fleet | None = Relationship()
@@ -141,6 +152,8 @@ class DeliveryLot(SQLModel, table=True):
                 lot["route_time_max"] = rl["time_max"]
             if rl.get("time_unit", False):
                 lot["route_time_unit"] = rl["time_unit"]
+        if lot.get("config") is not None:
+            lot["config_data"] = config_to_lot_config(lot.pop("config"))
         # Return sanitized dictionary
         return lot
 
@@ -160,6 +173,7 @@ class DeliveryLot(SQLModel, table=True):
             for link in self.deliveries:
                 deliveries.append(link.delivery.model_dump())
             serialized['deliveries'] = deliveries
+            serialized['delivery_count'] = len(deliveries)
         # Build 'drivers' attribute from relations
         if self.drivers:
             drivers = []
@@ -198,6 +212,8 @@ class DeliveryLot(SQLModel, table=True):
             limits['time_unit'] = self.route_time_unit
         if len(limits):
             serialized['route_limits'] = limits
+        if self.config_data is not None:
+            serialized['config'] = self.config_data.model_dump(mode='json')
         # Return (custom) serialized model
         return serialized
 
