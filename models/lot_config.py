@@ -83,12 +83,18 @@ class ScheduleConfig(SQLModel):
     respect_delivery_windows: bool | None = None
     time_windows: TimeWindowsConfig | None = None
 
+class ClusteringConfig(SQLModel):
+    """Client-editable clustering flags (server-owned keys stay in plan_engine_defaults)."""
+
+    force_vehicles_fleet_match: bool | None = None
+
 class LotConfig(SQLModel):
     model_config = ConfigDict(extra="ignore")
 
     vehicles: VehiclesConfig | None = None
     rebalance: RebalanceConfig | None = None
     schedule: ScheduleConfig | None = None
+    clustering: ClusteringConfig | None = None
     zone: str | None = None
 
     def plan_date(self, fallback: date | None = None) -> str:

@@ -14,6 +14,7 @@ settings.preprocessing_batch_size fall back to legacy formulas when omitted.
 Rebalance falls back to PlanRebalance defaults when omitted.
 """
 
+import logging
 import math
 
 from models.enum import (
@@ -33,6 +34,7 @@ from models.lot_config import (
     as_utc,
 )
 from libs.optimizer.models.plan_clustering import PlanClustering
+from libs.plan_engine_defaults import coerce_bool, dynamic_fleet_cluster_size_boost
 from libs.optimizer.models.plan_rebalance import PlanRebalance
 from libs.optimizer.models.plan_routing import PlanRouting
 from libs.optimizer.models.plan_settings import PlanSettings
@@ -43,6 +45,8 @@ from libs.optimizer.models.plan_vehicle import (
     PlanVehicle,
     VehicleConsumption,
 )
+
+logger = logging.getLogger(__name__)
 
 _VOLUME_WIRE_UNITS: dict[VolumeUnit, str] = {
     VolumeUnit.CUBIC_CENTIMETER: "cm3",
@@ -171,9 +175,34 @@ def compute_cluster_sizes(a_sum: int, v_sum: int) -> tuple[int, int]:
     return min_size_cluster, max_size_cluster
 
 
+def scale_cluster_sizes_for_dynamic_fleet(
+    min_size_cluster: int,
+    max_size_cluster: int,
+    *,
+    delivery_count: int,
+    boost: float | None = None,
+) -> tuple[int, int]:
+    multiplier = (
+        boost
+        if boost is not None
+        else dynamic_fleet_cluster_size_boost(delivery_count)
+    )
+    if multiplier <= 1.0:
+        return min_size_cluster, max_size_cluster
+    return (
+        math.ceil(min_size_cluster * multiplier),
+        math.ceil(max_size_cluster * multiplier),
+    )
+
+
 def compute_preprocessing_batch_size(max_size_cluster: int) -> int:
     """Legacy fallback: preprocessing batch = max cluster size × 4."""
     return max_size_cluster * 4
+
+
+def resolve_force_split_clusters(force_vehicles_fleet_match: bool) -> bool:
+    """Full fleet: one cluster per vehicle. Dynamic fleet: allow splitting oversized clusters."""
+    return not force_vehicles_fleet_match
 
 
 def build_plan_clustering(
@@ -183,10 +212,45 @@ def build_plan_clustering(
     v_sum: int | None = None,
 ) -> PlanClustering:
     stored = dict(engine_clustering)
-    if stored.get("min_size_cluster") is None or stored.get("max_size_cluster") is None:
-        min_s, max_s = compute_cluster_sizes(a_sum or 0, v_sum or 0)
+    if "force_vehicles_fleet_match" in stored:
+        stored["force_vehicles_fleet_match"] = coerce_bool(
+            stored["force_vehicles_fleet_match"]
+        )
+    force_fleet_match = stored.get("force_vehicles_fleet_match")
+    has_counts = bool(a_sum and v_sum)
+
+    if force_fleet_match is False and has_counts:
+        base_min, base_max = compute_cluster_sizes(a_sum, v_sum)
+        boost = dynamic_fleet_cluster_size_boost(a_sum)
+        min_s, max_s = scale_cluster_sizes_for_dynamic_fleet(
+            base_min,
+            base_max,
+            delivery_count=a_sum,
+            boost=boost,
+        )
+        stored["min_size_cluster"] = min_s
+        stored["max_size_cluster"] = max_s
+        logger.info(
+            "dynamic fleet clustering boost: deliveries=%s vehicles=%s "
+            "base=%s/%s boosted=%s/%s multiplier=%.2f",
+            a_sum,
+            v_sum,
+            base_min,
+            base_max,
+            min_s,
+            max_s,
+            boost,
+        )
+    elif (
+        stored.get("min_size_cluster") is None or stored.get("max_size_cluster") is None
+    ) and has_counts:
+        min_s, max_s = compute_cluster_sizes(a_sum, v_sum)
         stored.setdefault("min_size_cluster", min_s)
         stored.setdefault("max_size_cluster", max_s)
+
+    force_fleet_match = coerce_bool(stored.get("force_vehicles_fleet_match", False))
+    stored["force_split_clusters"] = resolve_force_split_clusters(force_fleet_match)
+
     return PlanClustering.model_validate(stored)
 
 

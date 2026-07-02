@@ -7,6 +7,9 @@ from typing import Any
 
 ENGINE_CONFIG_KEYS = frozenset({"clustering", "routing", "settings"})
 
+# Clustering keys the web client may set per run (rest stay server-owned).
+CLIENT_CLUSTERING_KEYS = frozenset({"force_vehicles_fleet_match"})
+
 _DEFAULT_CLUSTERING: dict[str, Any] = {
     "size_cluster_tolerance": 0.15,
     "allow_subclustering_by_volume": True,
@@ -14,7 +17,7 @@ _DEFAULT_CLUSTERING: dict[str, Any] = {
     "allow_subclustering_by_capacity": True,
     "capacity_divide_threshold": 1.5,
     "force_vehicles_fleet_match": False,
-    "force_split_clusters": True,
+    "force_split_clusters": False,
 }
 
 _DEFAULT_ROUTING: dict[str, Any] = {
@@ -27,7 +30,7 @@ _DEFAULT_ROUTING: dict[str, Any] = {
     "reorder_nearby_max_penalty": 1.15,
     "distance_haversine_limit": 20,
     "distance_factor": 1.55,
-    "start_time_minutes_route": 720,
+    "start_time_minutes_route": 800,
     "service_time_min": 1.1,
     "avg_speed_kph": 40.0,
     "early_tolerance_min": 5.0,
@@ -43,7 +46,6 @@ _DEFAULT_ROUTING: dict[str, Any] = {
 _DEFAULT_SETTINGS: dict[str, Any] = {
     "preprocessing": {
         "enable_address_preprocessing": True,
-        "preprocessing_batch_size": 500,
         "max_distance_km": 100.0,
     },
     "hardware": {
@@ -54,6 +56,13 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
         "routing_strategy": "GRANULAR_ROUTING",
     },
 }
+
+# Tiered multipliers for dynamic fleet (force_vehicles_fleet_match=false).
+DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_LOW = 2000
+DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_MID = 5000
+DYNAMIC_FLEET_CLUSTER_BOOST_UP_TO_2K = 1.0
+DYNAMIC_FLEET_CLUSTER_BOOST_2K_TO_5K = 1.15
+DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K = 1.25
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
     out = dict(base)
@@ -84,6 +93,29 @@ def engine_routing_defaults() -> dict[str, Any]:
 def engine_settings_defaults() -> dict[str, Any]:
     return deepcopy(_load_json_env("PLAN_SETTINGS_JSON") or _DEFAULT_SETTINGS)
 
+def coerce_bool(value: Any) -> bool:
+    """Normalize bools from JSON, env strings, or query params."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off", ""}:
+            return False
+    return bool(value)
+
+
+def dynamic_fleet_cluster_size_boost(delivery_count: int) -> float:
+    """Scale auto min/max cluster sizes by stop volume when dynamic fleet is enabled."""
+    if delivery_count <= DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_LOW:
+        return DYNAMIC_FLEET_CLUSTER_BOOST_UP_TO_2K
+    if delivery_count <= DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_MID:
+        return DYNAMIC_FLEET_CLUSTER_BOOST_2K_TO_5K
+    return DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K
+
 def resolve_engine_config(overlay: dict[str, Any] | None = None) -> dict[str, Any]:
     resolved = {
         "clustering": engine_clustering_defaults(),
@@ -102,6 +134,18 @@ def strip_engine_keys_from_config(config: dict[str, Any] | None) -> dict[str, An
     if not config:
         return config
     out = dict(config)
+
+    clustering = out.pop("clustering", None)
+    preserved_clustering: dict[str, Any] = {}
+    if isinstance(clustering, dict):
+        for key in CLIENT_CLUSTERING_KEYS:
+            if clustering.get(key) is not None:
+                preserved_clustering[key] = clustering[key]
+    if preserved_clustering:
+        out["clustering"] = preserved_clustering
+
     for key in ENGINE_CONFIG_KEYS:
+        if key == "clustering":
+            continue
         out.pop(key, None)
     return out or None

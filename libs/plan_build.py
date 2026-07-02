@@ -13,7 +13,7 @@ from libs.lot_plan_adapter import (
 from libs.plan_engine_defaults import resolve_engine_config
 from libs.optimizer.models.plan_context import PlanContext
 from libs.package_wire import build_plan_address, parse_lat_lng_from_destination
-from models.lot_config import FleetRunProfile, LotConfig
+from models.lot_config import FleetRunProfile, LotConfig, config_to_lot_config
 
 def lot_delivery_count(lot: dict[str, Any], *, fallback: int) -> int:
     if lot.get("delivery_count") is not None:
@@ -56,8 +56,16 @@ def build_plan_context_for_lot(
     a_sum = delivery_count if delivery_count is not None else len(delivery_rows)
     v_sum = sum(link.quantity for link in fleet_links)
     engine = resolve_engine_config()
+    clustering_dict = dict(engine["clustering"])
+    if (
+        lot_config.clustering is not None
+        and lot_config.clustering.force_vehicles_fleet_match is not None
+    ):
+        clustering_dict["force_vehicles_fleet_match"] = (
+            lot_config.clustering.force_vehicles_fleet_match
+        )
     clustering = build_plan_clustering(
-        engine_clustering=engine["clustering"],
+        engine_clustering=clustering_dict,
         a_sum=a_sum,
         v_sum=v_sum,
     )
@@ -153,7 +161,7 @@ def build_plan_context_from_lot_api(
     delivery_rows: list[tuple[int, str, dict | None]],
 ) -> PlanContext:
     lot_db = lot_db_stub_from_api(lot)
-    lot_config = LotConfig.model_validate(lot.get("config") or {})
+    lot_config = config_to_lot_config(lot.get("config")) or LotConfig()
     fleet = lot.get("fleet") or {}
     vehicles = fleet.get("vehicles") or []
     v_sum = sum(int(v.get("qty", 0)) for v in vehicles)
