@@ -18,12 +18,21 @@ def _int_ids(raw_ids: list[str]) -> list[int]:
     return [int(i) for i in raw_ids]
 
 
-def bulk_link_lot_deliveries(db: Session, lot_id: int, raw_ids: list[str]) -> int:
+def bulk_link_lot_deliveries(
+    db: Session,
+    lot_id: int,
+    raw_ids: list[str],
+    *,
+    company_id: int | None = None,
+) -> int:
     """Link explicit delivery IDs. Returns rows linked."""
     if not raw_ids:
         return 0
     ids = _int_ids(raw_ids)
-    existing = set(db.exec(select(Delivery.id).where(Delivery.id.in_(ids))).all())
+    query = select(Delivery.id).where(Delivery.id.in_(ids))
+    if company_id is not None:
+        query = query.where(Delivery.company_id == company_id)
+    existing = set(db.exec(query).all())
     rows = [
         {"delivery_lot_id": lot_id, "delivery_id": dlv_id}
         for dlv_id in ids
@@ -34,12 +43,21 @@ def bulk_link_lot_deliveries(db: Session, lot_id: int, raw_ids: list[str]) -> in
     return len(rows)
 
 
-def bulk_link_lot_drivers(db: Session, lot_id: int, raw_ids: list[str]) -> int:
+def bulk_link_lot_drivers(
+    db: Session,
+    lot_id: int,
+    raw_ids: list[str],
+    *,
+    company_id: int | None = None,
+) -> int:
     """Link explicit driver IDs. Returns rows linked."""
     if not raw_ids:
         return 0
     ids = _int_ids(raw_ids)
-    existing = set(db.exec(select(Driver.id).where(Driver.id.in_(ids))).all())
+    query = select(Driver.id).where(Driver.id.in_(ids))
+    if company_id is not None:
+        query = query.where(Driver.company_id == company_id)
+    existing = set(db.exec(query).all())
     rows = [
         {"delivery_lot_id": lot_id, "driver_id": drv_id}
         for drv_id in ids
@@ -50,16 +68,28 @@ def bulk_link_lot_drivers(db: Session, lot_id: int, raw_ids: list[str]) -> int:
     return len(rows)
 
 
-def replace_lot_deliveries(db: Session, lot_id: int, raw_ids: list[str]) -> int:
+def replace_lot_deliveries(
+    db: Session,
+    lot_id: int,
+    raw_ids: list[str],
+    *,
+    company_id: int | None = None,
+) -> int:
     """Replace all delivery links for a lot (single DELETE + bulk INSERT, no commit)."""
     db.exec(delete(DeliveryLotDelivery).where(DeliveryLotDelivery.delivery_lot_id == lot_id))
-    return bulk_link_lot_deliveries(db, lot_id, raw_ids)
+    return bulk_link_lot_deliveries(db, lot_id, raw_ids, company_id=company_id)
 
 
-def replace_lot_drivers(db: Session, lot_id: int, raw_ids: list[str]) -> int:
+def replace_lot_drivers(
+    db: Session,
+    lot_id: int,
+    raw_ids: list[str],
+    *,
+    company_id: int | None = None,
+) -> int:
     """Replace all driver links for a lot (single DELETE + bulk INSERT, no commit)."""
     db.exec(delete(DeliveryLotDriver).where(DeliveryLotDriver.delivery_lot_id == lot_id))
-    return bulk_link_lot_drivers(db, lot_id, raw_ids)
+    return bulk_link_lot_drivers(db, lot_id, raw_ids, company_id=company_id)
 
 
 def count_lot_deliveries(db: Session, lot_id: int) -> int:
@@ -168,8 +198,12 @@ def serialize_lot_created(db: Session, lot_id: int, delivery_count: int | None =
     }
 
 
-def serialize_plan_poll(state: DeliveryLotState) -> dict:
-    return {"state": state, "routes": None}
+def serialize_plan_poll(state: DeliveryLotState, optimizer_session_id: str | None = None) -> dict:
+    out: dict = {"state": state, "routes": None}
+    if optimizer_session_id:
+        out["session_id"] = optimizer_session_id
+        out["optimizer_session_id"] = optimizer_session_id
+    return out
 
 
 def load_delivery_lot_detail(db: Session, lot_id: int) -> DeliveryLot | None:
@@ -199,7 +233,8 @@ def load_delivery_plan_detail(db: Session, plan_id: int) -> DeliveryPlan | None:
             selectinload(DeliveryPlan.paths).selectinload(DeliveryPath.driver),
             selectinload(DeliveryPlan.paths)
             .selectinload(DeliveryPath.deliveries)
-            .selectinload(DeliveryPathDelivery.delivery),
+            .selectinload(DeliveryPathDelivery.delivery)
+            .selectinload(Delivery.milestone),
         )
     )
     return db.exec(stmt).first()
@@ -245,15 +280,22 @@ def delivery_links_for_route(
     route,
     package_to_delivery: dict[str, int],
 ) -> list[DeliveryPathDelivery]:
-    """One row per delivery per route; multiple packages at same address share delivery_id."""
+    """One row per delivery per route.
+
+    When the optimizer merges multiple input addresses at the same coordinate into
+    a single waypoint (with all their packages bundled), we must iterate every
+    package — not just packages[0] — so every delivery that shared that location
+    appears in the route result.
+    """
     order_by_delivery: dict[int, int] = {}
     for waypoint in route.optimized_waypoints:
-        pkg_id = waypoint.packages[0].package_id
-        dlv_id = resolve_delivery_id(package_to_delivery, pkg_id)
-        order = waypoint.order
-        prev = order_by_delivery.get(dlv_id)
-        if prev is None or order < prev:
-            order_by_delivery[dlv_id] = order
+        for pkg in (waypoint.packages or []):
+            pkg_id = pkg.package_id
+            dlv_id = resolve_delivery_id(package_to_delivery, pkg_id)
+            order = waypoint.order
+            prev = order_by_delivery.get(dlv_id)
+            if prev is None or order < prev:
+                order_by_delivery[dlv_id] = order
     return [
         DeliveryPathDelivery(
             delivery_path_id=path_id,
@@ -264,25 +306,203 @@ def delivery_links_for_route(
     ]
 
 
+def _optimized_waypoints_payload(route, package_to_delivery: dict[str, int]) -> list[dict]:
+    """Optimizer visit order with delivery_id + arrival_time for GET /plan consumers."""
+    from libs.time_window_wire import normalize_waypoint_payload
+
+    payload: list[dict] = []
+    for wp in route.optimized_waypoints or []:
+        item = wp.model_dump(mode="json", exclude_none=True)
+        # A merged waypoint can bundle packages from several deliveries; expose
+        # all of them (delivery_id kept as the first for backward compatibility).
+        dlv_ids: list[str] = []
+        for pkg in wp.packages or []:
+            dlv_id = str(resolve_delivery_id(package_to_delivery, pkg.package_id))
+            if dlv_id not in dlv_ids:
+                dlv_ids.append(dlv_id)
+        if dlv_ids:
+            item["delivery_id"] = dlv_ids[0]
+            item["delivery_ids"] = dlv_ids
+        payload.append(normalize_waypoint_payload(item))
+    return payload
+
+
+def _route_data_from_optimizer(
+    route,
+    route_index: int,
+    *,
+    package_to_delivery: dict[str, int] | None = None,
+) -> dict:
+    data: dict = {
+        "route_index": route_index,
+        "route_geometry": route.route_geometry,
+    }
+    if route.route_id is not None:
+        data["route_id"] = route.route_id
+    if route.distance_km is not None:
+        data["total_distance_km"] = route.distance_km
+    if route.duration_sec is not None:
+        data["total_duration_sec"] = route.duration_sec
+    if package_to_delivery is not None:
+        waypoints = _optimized_waypoints_payload(route, package_to_delivery)
+        if waypoints:
+            data["optimized_waypoints"] = waypoints
+            data["stops"] = waypoints
+            data["num_points"] = len(waypoints)
+            arrival_times = [
+                wp.get("arrival_time") for wp in waypoints
+            ]
+            if any(v is not None for v in arrival_times):
+                data["arrival_times"] = arrival_times
+    for name in (
+        "total_packages",
+        "load_percentage",
+        "route_volume_cm3",
+        "executor_capacity_cm3",
+        "avg_speed_kmh",
+        "stops_per_hour",
+        "duration_formatted",
+        "duration_hours",
+        "duration_minutes",
+        "tw_stats",
+    ):
+        value = getattr(route, name, None)
+        if value is not None:
+            data[name] = value
+    return data
+
+
+def _totals_data_from_optimizer(totals) -> dict | None:
+    if totals is None:
+        return None
+
+    data: dict = {}
+    for name in (
+        "total_routes",
+        "total_points",
+        "total_distance_km",
+        "total_duration_sec",
+        "execution_time_sec",
+    ):
+        value = getattr(totals, name, None)
+        if value is not None:
+            data[name] = value
+
+    fleet_metrics: dict = {}
+    for name in (
+        "fleet_size",
+        "fleet_capacity_total_cm3",
+        "fleet_volume_used_cm3",
+        "fleet_efficiency_percentage",
+        "fleet_usage_percentage",
+    ):
+        value = getattr(totals, name, None)
+        if value is not None:
+            fleet_metrics[name] = value
+    if fleet_metrics:
+        if totals.total_routes is not None:
+            fleet_metrics["routes_count"] = totals.total_routes
+        data["fleet_metrics"] = fleet_metrics
+
+    tw_global: dict = {}
+    tw_fields = (
+        ("tw_total", "total_tw"),
+        ("tw_inserted_ok", "inserted_ok"),
+        ("tw_violations", "violations"),
+        ("tw_fallback_violations", "fallback_violations"),
+        ("tw_total_packages", "total_tw_packages"),
+        ("tw_violation_percentage", "violation_percentage"),
+        ("tw_status", "status"),
+    )
+    for src, dst in tw_fields:
+        value = getattr(totals, src, None)
+        if value is not None:
+            tw_global[dst] = value
+    if tw_global:
+        data["time_windows_global"] = tw_global
+
+    for name in (
+        "submitted_points",
+        "unserved_points",
+        "rejection_summary",
+        "rejected_deliveries",
+    ):
+        value = getattr(totals, name, None)
+        if value is not None:
+            data[name] = value
+
+    submitted = data.get("submitted_points")
+    routed = data.get("total_points")
+    if submitted is not None and routed is not None and "unserved_points" not in data:
+        unserved = int(submitted) - int(routed)
+        if unserved > 0:
+            data["unserved_points"] = unserved
+
+    return data or None
+
+
+def _totals_data_from_result(result) -> dict | None:
+    """Merge optimizer totals + root-level rejection / submitted fields."""
+    totals = getattr(result, "totals", None)
+    data = _totals_data_from_optimizer(totals) or {}
+
+    for name in (
+        "submitted_points",
+        "unserved_points",
+        "rejection_summary",
+        "rejected_deliveries",
+    ):
+        if data.get(name) is not None:
+            continue
+        value = getattr(result, name, None)
+        if value is not None:
+            data[name] = value
+
+    submitted = data.get("submitted_points")
+    routed = data.get("total_points")
+    if submitted is not None and routed is not None and data.get("unserved_points") is None:
+        unserved = int(submitted) - int(routed)
+        if unserved > 0:
+            data["unserved_points"] = unserved
+
+    return data or None
+
+
 def persist_processing_plan_routes(
     db: Session,
     plan_db: DeliveryPlan,
     milestone_id: int,
     routes,
     *,
+    result=None,
+    totals=None,
     package_to_delivery: dict[str, int],
     wire_type_to_vehicle: dict[str, int],
 ) -> None:
     """Replace plan paths from a completed optimizer result (called on GET /plan once complete)."""
     clear_plan_paths(db, plan_db.id)
 
+    totals_data = (
+        _totals_data_from_result(result)
+        if result is not None
+        else _totals_data_from_optimizer(totals)
+    )
+    if totals_data is not None:
+        plan_db.totals_data = totals_data
+        db.add(plan_db)
+
     paths: list[DeliveryPath] = []
-    for route in routes:
+    for route_index, route in enumerate(routes):
         paths.append(
             DeliveryPath(
                 delivery_plan_id=plan_db.id,
                 milestone_id=milestone_id,
                 vehicle_id=resolve_vehicle_id(wire_type_to_vehicle, route.vehicle_type),
+                route_data=_route_data_from_optimizer(
+                    route,
+                    route_index,
+                    package_to_delivery=package_to_delivery,
+                ),
             )
         )
     db.add_all(paths)
@@ -295,3 +515,46 @@ def persist_processing_plan_routes(
         )
     if links:
         db.add_all(links)
+
+
+def apply_draft_plan_routes(
+    db: Session,
+    plan_db: DeliveryPlan,
+    routes,
+    *,
+    result=None,
+    totals=None,
+    package_to_delivery: dict[str, int],
+) -> None:
+    totals_data = (
+        _totals_data_from_result(result)
+        if result is not None
+        else _totals_data_from_optimizer(totals)
+    )
+    if totals_data is not None:
+        plan_db.totals_data = totals_data
+        db.add(plan_db)
+
+    for route_index, route in enumerate(routes):
+        path_id = int(route.route_id)
+        pth_db = db.get(DeliveryPath, path_id)
+        if not pth_db or pth_db.delivery_plan_id != plan_db.id:
+            continue
+
+        db.exec(
+            delete(DeliveryPathDelivery).where(
+                DeliveryPathDelivery.delivery_path_id == path_id
+            )
+        )
+
+        index = (pth_db.route_data or {}).get("route_index", route_index)
+        pth_db.route_data = _route_data_from_optimizer(
+            route,
+            index,
+            package_to_delivery=package_to_delivery,
+        )
+        db.add(pth_db)
+
+        links = delivery_links_for_route(path_id, route, package_to_delivery)
+        if links:
+            db.add_all(links)
