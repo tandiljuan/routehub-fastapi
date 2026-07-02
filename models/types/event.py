@@ -30,7 +30,7 @@ def validate_ical_event(event: str) -> str:
     errmsg = []
 
     if 0 < len(mandatory_keys):
-        msg = 'Unused mandatory key'
+        msg = 'Missing mandatory key'
         msg += ' ' if 1 == len(mandatory_keys) else 's '
         msg += ', '.join(mandatory_keys)
         errmsg.append(msg)
