@@ -34,7 +34,14 @@ def get_engine():
 
 def get_session():
     with SQLModel_Session(engine) as session:
-        yield session
+        try:
+            yield session
+        finally:
+            # Drop the per-request company so a pooled connection/thread can't
+            # carry it into the next request (RLS defense-in-depth hygiene).
+            from libs.rls import clear_current_company
+
+            clear_current_company()
 
 # Type alias for route definitions
 Session = Annotated[SQLModel_Session, Depends(get_session)]
