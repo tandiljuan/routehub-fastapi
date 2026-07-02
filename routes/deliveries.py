@@ -1,4 +1,3 @@
-from typing import Any
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -7,7 +6,8 @@ from fastapi import (
 )
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
+from libs.delivery_bulk import normalize_bulk_delivery_item, parse_bulk_deliveries_body
 from models.database import Session as DbSession
 from models.delivery import (
     Delivery,
@@ -18,6 +18,8 @@ from models.delivery import (
 )
 from models.delivery_lot import DeliveryLotDelivery
 from models.delivery_plan import DeliveryPathDelivery
+from libs.tenant.context import CompanyDep, assert_company_match, assert_related_company_id
+from models.milestone import Milestone
 
 router = APIRouter(
     prefix="/deliveries",
@@ -34,8 +36,8 @@ dlv_create_adapter = TypeAdapter(DeliveryCreate)
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def deliveries_get(db: DbSession):
-    dlv_list = db.exec(select(Delivery)).all()
+async def deliveries_get(db: DbSession, company_id: CompanyDep):
+    dlv_list = db.exec(select(Delivery).where(Delivery.company_id == company_id)).all()
     return dlv_list
 
 @router.post(
@@ -51,9 +53,11 @@ async def deliveries_post(
     response: Response,
     db: DbSession,
     post_data: DeliveryCreate,
+    company_id: CompanyDep,
 ):
     dlv_dict = post_data.model_dump()
-    dlv_dict['company_id'] = 1
+    dlv_dict['company_id'] = company_id
+    assert_related_company_id(db, Milestone, post_data.milestone_id, company_id, "Milestone")
     dlv_db = Delivery.model_validate(dlv_dict)
     db.add(dlv_db)
     db.commit()
@@ -69,16 +73,26 @@ async def deliveries_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
+async def deliveries_bulk_post(
+    request: Request,
+    db: DbSession,
+    company_id: CompanyDep,
+):
+    raw_items = parse_bulk_deliveries_body(await request.json())
     success = []
     failure = []
     created: list[tuple[int, Delivery]] = []
 
-    for index, item in enumerate(post_data):
+    for index, item in enumerate(raw_items):
         try:
-            dlv_post = dlv_create_adapter.validate_python(item)
+            dlv_post = dlv_create_adapter.validate_python(
+                normalize_bulk_delivery_item(item),
+            )
             dlv_dict = dlv_post.model_dump()
-            dlv_dict['company_id'] = 1
+            dlv_dict['company_id'] = company_id
+            assert_related_company_id(
+                db, Milestone, dlv_post.milestone_id, company_id, "Milestone",
+            )
             # Keep optimizer package payload verbatim (dimensions, weight_kg, etc.)
             if isinstance(item, dict) and item.get('extra') is not None:
                 dlv_dict['extra'] = item['extra']
@@ -86,7 +100,7 @@ async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
             db.add(dlv_db)
             created.append((index, dlv_db))
 
-        except Exception as e:
+        except ValidationError as e:
             failure.append({
                 "idx": index,
                 "err": [
@@ -96,6 +110,18 @@ async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
                         "loc": error["loc"],
                     } for error in e.errors()
                 ],
+            })
+        except HTTPException as e:
+            # Cross-tenant / missing milestone: record the row, keep the batch going.
+            failure.append({
+                "idx": index,
+                "err": [{"msg": e.detail, "inp": item, "loc": ["milestone_id"]}],
+            })
+        except (ValueError, TypeError) as e:
+            # Non-numeric lat/lng in normalize_bulk_delivery_item, etc.
+            failure.append({
+                "idx": index,
+                "err": [{"msg": str(e), "inp": item, "loc": ["destination"]}],
             })
 
     if created:
@@ -114,10 +140,9 @@ async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def deliveries_id_get(id: int, db: DbSession):
+async def deliveries_id_get(id: int, db: DbSession, company_id: CompanyDep):
     dlv_db = db.get(Delivery, id)
-    if not dlv_db:
-        raise HTTPException(status_code=404, detail="Delivery not found")
+    assert_company_match(dlv_db, company_id, "Delivery")
     return dlv_db
 
 @router.patch(
@@ -131,11 +156,15 @@ async def deliveries_id_patch(
     id: int,
     db: DbSession,
     patch_data: DeliveryUpdate,
+    company_id: CompanyDep,
 ):
     dlv_db = db.get(Delivery, id)
-    if not dlv_db:
-        raise HTTPException(status_code=404, detail="Delivery not found")
+    assert_company_match(dlv_db, company_id, "Delivery")
     dlv_dict = patch_data.model_dump(exclude_unset=True)
+    if patch_data.milestone_id is not None:
+        assert_related_company_id(
+            db, Milestone, patch_data.milestone_id, company_id, "Milestone",
+        )
     dlv_db.sqlmodel_update(dlv_dict)
     db.add(dlv_db)
     db.commit()
@@ -143,10 +172,9 @@ async def deliveries_id_patch(
     return dlv_db
 
 @router.delete("/{id}", summary="Delete delivery")
-async def deliveries_id_delete(id: int, db: DbSession):
+async def deliveries_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     dlv_db = db.get(Delivery, id)
-    if not dlv_db:
-        raise HTTPException(status_code=404, detail="Delivery not found")
+    assert_company_match(dlv_db, company_id, "Delivery")
 
     in_lot = db.exec(
         select(DeliveryLotDelivery.delivery_lot_id)
