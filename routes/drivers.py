@@ -14,6 +14,7 @@ from models.driver import (
     DriverUpdate,
     DriverVehicle,
 )
+from libs.tenant.context import CompanyDep, assert_company_match, assert_vehicle_ids_for_company
 
 router = APIRouter(
     prefix="/drivers",
@@ -27,9 +28,9 @@ router = APIRouter(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def fleets_get(db: DbSession):
+async def drivers_get(db: DbSession, company_id: CompanyDep):
     response = []
-    drv_list = db.exec(select(Driver)).all()
+    drv_list = db.exec(select(Driver).where(Driver.company_id == company_id)).all()
     for d in drv_list:
         response.append(d.model_dump())
     return response
@@ -47,16 +48,20 @@ async def drivers_post(
     response: Response,
     db: DbSession,
     post_data: DriverCreate,
+    company_id: CompanyDep,
 ):
-    # Dump submitted data as dictionary
-    drv_dict = post_data.model_dump()
-    # Add Company ID to submitted data
-    drv_dict['company_id'] = 1
-    # Create drivel object from dictionary
+    drv_dict = post_data.model_dump(exclude={"vehicles"})
+    drv_dict['company_id'] = company_id
     drv_db = Driver.model_validate(drv_dict)
 
     db.add(drv_db)
     db.flush()
+
+    vehicle_ids = [
+        v.id for v in (post_data.vehicles or [])
+        if int(v.qty) >= 1
+    ]
+    assert_vehicle_ids_for_company(db, vehicle_ids, company_id)
 
     for v in post_data.vehicles or []:
         veh_id = int(v.id)
@@ -65,7 +70,7 @@ async def drivers_post(
             continue
 
         veh_db = db.get(Vehicle, veh_id)
-        if veh_db:
+        if veh_db and veh_db.company_id == company_id:
             db.add(DriverVehicle(
                 driver_id=drv_db.id,
                 vehicle_id=veh_db.id,
@@ -74,11 +79,9 @@ async def drivers_post(
 
     db.commit()
 
-    # Set location header
     drv_url = request.url_for("drivers_id_get", id=drv_db.id)
     response.headers["location"] = f"{drv_url}"
 
-    # Return (custom serialized) Driver
     db.refresh(drv_db)
     return drv_db.model_dump()
 
@@ -90,10 +93,9 @@ async def drivers_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def drivers_id_get(id: int, db: DbSession):
+async def drivers_id_get(id: int, db: DbSession, company_id: CompanyDep):
     drv_db = db.get(Driver, id)
-    if not drv_db:
-        raise HTTPException(status_code=404, detail="Driver not found")
+    assert_company_match(drv_db, company_id, "Driver")
     return drv_db.model_dump()
 
 @router.patch(
@@ -107,20 +109,22 @@ async def drivers_id_patch(
     id: int,
     db: DbSession,
     patch_data: DriverUpdate,
+    company_id: CompanyDep,
 ):
-    # Retrieve Driver
     drv_db = db.get(Driver, id)
-    if not drv_db:
-        raise HTTPException(status_code=404, detail="Driver not found")
+    assert_company_match(drv_db, company_id, "Driver")
 
-    # Dump submitted data as dictionary
-    drv_dict = patch_data.model_dump(exclude_unset=True)
-    # Add Company ID to submitted data
-    drv_dict['company_id'] = 1
-    # Update drivel object from dictionary
-    drv_db.sqlmodel_update(drv_dict)
+    drv_dict = patch_data.model_dump(exclude_unset=True, exclude={"vehicles"})
+    if drv_dict:
+        drv_db.sqlmodel_update(drv_dict)
+        db.add(drv_db)
 
-    db.add(drv_db)
+    if patch_data.vehicles is not None:
+        vehicle_ids = [
+            v.id for v in patch_data.vehicles
+            if int(v.qty) >= 1
+        ]
+        assert_vehicle_ids_for_company(db, vehicle_ids, company_id)
 
     for v in patch_data.vehicles or []:
         veh_id = int(v.id)
@@ -141,7 +145,7 @@ async def drivers_id_patch(
             continue
 
         veh_db = db.get(Vehicle, veh_id)
-        if veh_db:
+        if veh_db and veh_db.company_id == company_id:
             db.add(DriverVehicle(
                 driver_id=drv_db.id,
                 vehicle_id=veh_db.id,
@@ -150,15 +154,13 @@ async def drivers_id_patch(
 
     db.commit()
 
-    # Return (custom serialized) Driver
     db.refresh(drv_db)
     return drv_db.model_dump()
 
 @router.delete("/{id}", summary="Delete driver")
-async def drivers_id_delete(id: int, db: DbSession):
+async def drivers_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     drv_db = db.get(Driver, id)
-    if not drv_db:
-        raise HTTPException(status_code=404, detail="Driver not found")
+    assert_company_match(drv_db, company_id, "Driver")
     db.delete(drv_db)
     db.commit()
     return {"code": 200, "message": "Driver Deleted"}

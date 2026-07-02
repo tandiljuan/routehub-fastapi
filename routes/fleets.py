@@ -14,6 +14,7 @@ from models.fleet import (
     FleetUpdate,
     FleetVehicle,
 )
+from libs.tenant.context import CompanyDep, assert_company_match, assert_vehicle_ids_for_company
 
 router = APIRouter(
     prefix="/fleets",
@@ -27,9 +28,9 @@ router = APIRouter(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def fleets_get(db: DbSession):
+async def fleets_get(db: DbSession, company_id: CompanyDep):
     response = []
-    flt_list = db.exec(select(Fleet)).all()
+    flt_list = db.exec(select(Fleet).where(Fleet.company_id == company_id)).all()
     for f in flt_list:
         response.append(f.model_dump())
     return response
@@ -47,14 +48,20 @@ async def fleets_post(
     response: Response,
     db: DbSession,
     post_data: FleetCreate,
+    company_id: CompanyDep,
 ):
-    # Add Company ID to submitted data
-    flt_dict = post_data.model_dump()
-    flt_dict['company_id'] = 1
+    flt_dict = post_data.model_dump(exclude={"vehicles"})
+    flt_dict['company_id'] = company_id
     flt_db = Fleet.model_validate(flt_dict)
 
     db.add(flt_db)
     db.flush()
+
+    vehicle_ids = [
+        v.id for v in (post_data.vehicles or [])
+        if int(v.qty) > 0
+    ]
+    assert_vehicle_ids_for_company(db, vehicle_ids, company_id)
 
     for v in post_data.vehicles or []:
         veh_id = int(v.id)
@@ -63,7 +70,7 @@ async def fleets_post(
             continue
 
         veh_db = db.get(Vehicle, veh_id)
-        if veh_db:
+        if veh_db and veh_db.company_id == company_id:
             db.add(FleetVehicle(
                 fleet_id=flt_db.id,
                 vehicle_id=veh_db.id,
@@ -73,11 +80,9 @@ async def fleets_post(
 
     db.commit()
 
-    # Set location header
     flt_url = request.url_for("fleets_id_get", id=flt_db.id)
     response.headers["location"] = f"{flt_url}"
 
-    # Return (custom serialized) Fleet
     db.refresh(flt_db)
     return flt_db.model_dump()
 
@@ -89,10 +94,9 @@ async def fleets_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def fleets_id_get(id: int, db: DbSession):
+async def fleets_id_get(id: int, db: DbSession, company_id: CompanyDep):
     flt_db = db.get(Fleet, id)
-    if not flt_db:
-        raise HTTPException(status_code=404, detail="Fleet not found")
+    assert_company_match(flt_db, company_id, "Fleet")
     return flt_db.model_dump()
 
 @router.patch(
@@ -106,15 +110,22 @@ async def fleets_id_patch(
     id: int,
     db: DbSession,
     patch_data: FleetUpdate,
+    company_id: CompanyDep,
 ):
-    # Retrieve Fleet
     flt_db = db.get(Fleet, id)
-    if not flt_db:
-        raise HTTPException(status_code=404, detail="Fleet not found")
+    assert_company_match(flt_db, company_id, "Fleet")
 
-    flt_dict = patch_data.model_dump(exclude_unset=True)
-    flt_db.sqlmodel_update(flt_dict)
-    db.add(flt_db)
+    flt_dict = patch_data.model_dump(exclude_unset=True, exclude={"vehicles"})
+    if flt_dict:
+        flt_db.sqlmodel_update(flt_dict)
+        db.add(flt_db)
+
+    if patch_data.vehicles is not None:
+        vehicle_ids = [
+            v.id for v in patch_data.vehicles
+            if int(v.qty) > 0
+        ]
+        assert_vehicle_ids_for_company(db, vehicle_ids, company_id)
 
     for v in patch_data.vehicles or []:
         veh_id = int(v.id)
@@ -135,7 +146,7 @@ async def fleets_id_patch(
             continue
 
         veh_db = db.get(Vehicle, veh_id)
-        if veh_db:
+        if veh_db and veh_db.company_id == company_id:
             db.add(FleetVehicle(
                 fleet_id=flt_db.id,
                 vehicle_id=veh_db.id,
@@ -145,15 +156,13 @@ async def fleets_id_patch(
 
     db.commit()
 
-    # Return (custom serialized) Fleet
     db.refresh(flt_db)
     return flt_db.model_dump()
 
 @router.delete("/{id}", summary="Delete fleet")
-async def fleets_id_delete(id: int, db: DbSession):
+async def fleets_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     flt_db = db.get(Fleet, id)
-    if not flt_db:
-        raise HTTPException(status_code=404, detail="Fleet not found")
+    assert_company_match(flt_db, company_id, "Fleet")
     db.delete(flt_db)
     db.commit()
     return {"code": 200, "message": "Fleet Deleted"}

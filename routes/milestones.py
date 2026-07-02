@@ -12,6 +12,7 @@ from models.milestone import (
     MilestoneResponse,
     MilestoneUpdate,
 )
+from libs.tenant.context import CompanyDep, assert_company_match
 
 router = APIRouter(
     prefix="/milestones",
@@ -25,8 +26,8 @@ router = APIRouter(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def milestones_get(db: DbSession):
-    mst_list = db.exec(select(Milestone)).all()
+async def milestones_get(db: DbSession, company_id: CompanyDep):
+    mst_list = db.exec(select(Milestone).where(Milestone.company_id == company_id)).all()
     return mst_list
 
 @router.post(
@@ -42,9 +43,10 @@ async def milestones_post(
     response: Response,
     db: DbSession,
     post_data: MilestoneCreate,
+    company_id: CompanyDep,
 ):
     mst_dict = post_data.model_dump()
-    mst_dict['company_id'] = 1
+    mst_dict['company_id'] = company_id
     mst_db = Milestone.model_validate(mst_dict)
     db.add(mst_db)
     db.commit()
@@ -61,10 +63,9 @@ async def milestones_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def milestones_id_get(id: int, db: DbSession):
+async def milestones_id_get(id: int, db: DbSession, company_id: CompanyDep):
     mst_db = db.get(Milestone, id)
-    if not mst_db:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    assert_company_match(mst_db, company_id, "Milestone")
     return mst_db
 
 @router.patch(
@@ -74,10 +75,9 @@ async def milestones_id_get(id: int, db: DbSession):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdate):
+async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdate, company_id: CompanyDep):
     mst_db = db.get(Milestone, id)
-    if not mst_db:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    assert_company_match(mst_db, company_id, "Milestone")
     mst_dict = patch_data.model_dump(exclude_unset=True)
     mst_db.sqlmodel_update(mst_dict)
     db.add(mst_db)
@@ -86,10 +86,9 @@ async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdat
     return mst_db
 
 @router.delete("/{id}", summary="Delete milestone")
-async def milestones_id_delete(id: int, db: DbSession):
+async def milestones_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     mst_db = db.get(Milestone, id)
-    if not mst_db:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    assert_company_match(mst_db, company_id, "Milestone")
     db.delete(mst_db)
     db.commit()
     return {"code": 200, "message": "Milestone Deleted"}

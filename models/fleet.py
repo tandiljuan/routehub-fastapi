@@ -63,21 +63,18 @@ class Fleet(FleetBase, table=True):
 
     @model_serializer(mode='wrap')
     def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
-        # Output from default serializer
         serialized = handler(self)
-        # Build 'vehicles' attribute from relations
-        if self.vehicles:
-            vehicles = []
-            for link in self.vehicles:
-                v = link.vehicle.model_dump()
-                v['qty'] = link.quantity
-                if link.run_profile:
-                    if link.run_profile.route is not None:
-                        v['route'] = link.run_profile.route.model_dump(exclude_none=True)
-                    if link.run_profile.behavior is not None:
-                        v['behavior'] = link.run_profile.behavior.model_dump(exclude_none=True)
-                vehicles.append(v)
-            serialized['vehicles'] = vehicles
+        vehicles: list[dict[str, object]] = []
+        for link in self.vehicles or []:
+            v = link.vehicle.model_dump()
+            v['qty'] = link.quantity
+            if link.run_profile:
+                if link.run_profile.route is not None:
+                    v['route'] = link.run_profile.route.model_dump(exclude_none=True)
+                if link.run_profile.behavior is not None:
+                    v['behavior'] = link.run_profile.behavior.model_dump(exclude_none=True)
+            vehicles.append(v)
+        serialized['vehicles'] = vehicles
         return serialized
 
 class FleetVehicle(SQLModel, table=True):

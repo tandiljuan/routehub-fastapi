@@ -12,6 +12,7 @@ from models.vehicle import (
     VehicleResponse,
     VehicleUpdate,
 )
+from libs.tenant.context import CompanyDep, assert_company_match
 
 router = APIRouter(
     prefix="/vehicles",
@@ -25,8 +26,8 @@ router = APIRouter(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def vehicles_get(db: DbSession):
-    veh_list = db.exec(select(Vehicle)).all()
+async def vehicles_get(db: DbSession, company_id: CompanyDep):
+    veh_list = db.exec(select(Vehicle).where(Vehicle.company_id == company_id)).all()
     return veh_list
 
 @router.post(
@@ -41,10 +42,11 @@ async def vehicles_post(
     request: Request,
     response: Response,
     db: DbSession,
-    post_data: VehicleCreate
+    post_data: VehicleCreate,
+    company_id: CompanyDep,
 ):
     veh_dict = post_data.model_dump()
-    veh_dict['company_id'] = 1
+    veh_dict['company_id'] = company_id
     veh_db = Vehicle.model_validate(veh_dict)
     db.add(veh_db)
     db.commit()
@@ -61,10 +63,9 @@ async def vehicles_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def vehicles_id_get(id: int, db: DbSession):
+async def vehicles_id_get(id: int, db: DbSession, company_id: CompanyDep):
     veh_db = db.get(Vehicle, id)
-    if not veh_db:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    assert_company_match(veh_db, company_id, "Vehicle")
     return veh_db
 
 @router.patch(
@@ -74,10 +75,9 @@ async def vehicles_id_get(id: int, db: DbSession):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate):
+async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate, company_id: CompanyDep):
     veh_db = db.get(Vehicle, id)
-    if not veh_db:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    assert_company_match(veh_db, company_id, "Vehicle")
     veh_dict = patch_data.model_dump(exclude_unset=True)
     veh_db.sqlmodel_update(veh_dict)
     db.add(veh_db)
@@ -86,10 +86,9 @@ async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate):
     return veh_db
 
 @router.delete("/{id}", summary="Delete vehicle")
-async def vehicles_id_delete(id: int, db: DbSession):
+async def vehicles_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     veh_db = db.get(Vehicle, id)
-    if not veh_db:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    assert_company_match(veh_db, company_id, "Vehicle")
     db.delete(veh_db)
     db.commit()
     return {"code": 200, "message": "Vehicle Deleted"}
