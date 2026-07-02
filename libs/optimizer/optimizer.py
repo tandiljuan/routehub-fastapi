@@ -51,3 +51,13 @@ class Optimizer():
             rbody['status'] = "completed"
         result_set = ResultSet.model_validate(rbody)
         return result_set
+
+    def get_route_status(self, session_id: str) -> tuple[int, dict]:
+        url = f"{self.host}:{self.port}/route-optimizer-app/routes/{session_id}/status"
+        headers = {'api-key': self.auth} if self.auth else {}
+        r = requests.get(url, headers=headers, timeout=30)
+        try:
+            body = r.json()
+        except ValueError:
+            body = {"detail": r.text or "Optimizer error"}
+        return r.status_code, body

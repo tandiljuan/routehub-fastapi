@@ -116,41 +116,41 @@ class DeliveryLot(SQLModel, table=True):
 
     def normalize_submitted_dict(lot: dict) -> dict:
         # Parse IDs
-        if lot.get("company_id", False):
+        if lot.get("company_id") is not None:
             lot["company_id"] = int(lot["company_id"])
-        if lot.get("milestone_id", False):
+        if lot.get("milestone_id") is not None:
             lot["milestone_id"] = int(lot["milestone_id"])
-        if lot.get("fleet_id", False):
+        if lot.get("fleet_id") is not None:
             lot["fleet_id"] = int(lot["fleet_id"])
         # Set vehicle limits values
-        if lot.get("vehicle_limits", False):
+        if lot.get("vehicle_limits"):
             vl = lot["vehicle_limits"]
-            if vl.get("volume_min", False):
+            if vl.get("volume_min") is not None:
                 lot["vehicle_volume_min"] = vl["volume_min"]
-            if vl.get("volume_max", False):
+            if vl.get("volume_max") is not None:
                 lot["vehicle_volume_max"] = vl["volume_max"]
-            if vl.get("capacity_min", False):
+            if vl.get("capacity_min") is not None:
                 lot["vehicle_capacity_min"] = vl["capacity_min"]
-            if vl.get("capacity_max", False):
+            if vl.get("capacity_max") is not None:
                 lot["vehicle_capacity_max"] = vl["capacity_max"]
         # Set route limits values
-        if lot.get("route_limits", False):
+        if lot.get("route_limits"):
             rl = lot["route_limits"]
-            if rl.get("stops_min", False):
+            if rl.get("stops_min") is not None:
                 lot["route_stops_min"] = rl["stops_min"]
-            if rl.get("stops_max", False):
+            if rl.get("stops_max") is not None:
                 lot["route_stops_max"] = rl["stops_max"]
-            if rl.get("length_min", False):
+            if rl.get("length_min") is not None:
                 lot["route_length_min"] = rl["length_min"]
-            if rl.get("length_max", False):
+            if rl.get("length_max") is not None:
                 lot["route_length_max"] = rl["length_max"]
-            if rl.get("length_unit", False):
+            if rl.get("length_unit") is not None:
                 lot["route_length_unit"] = rl["length_unit"]
-            if rl.get("time_min", False):
+            if rl.get("time_min") is not None:
                 lot["route_time_min"] = rl["time_min"]
-            if rl.get("time_max", False):
+            if rl.get("time_max") is not None:
                 lot["route_time_max"] = rl["time_max"]
-            if rl.get("time_unit", False):
+            if rl.get("time_unit") is not None:
                 lot["route_time_unit"] = rl["time_unit"]
         if lot.get("config") is not None:
             lot["config_data"] = config_to_lot_config(lot.pop("config"))
