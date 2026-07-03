@@ -29,10 +29,12 @@ def clear_current_company() -> None:
 
 
 def _set_guc(connection, company_id: int) -> None:
-    # Transaction-local (is_local=true): auto-clears at commit/rollback so the
-    # value can never bleed into the next user of a pooled connection.
+    # Session-scoped (is_local=false): survives commit/rollback so db.refresh()
+    # after a commit still sees the GUC. Safe because get_session() clears the
+    # ContextVar on exit and _reapply_on_new_transaction overwrites at the start
+    # of every new request on a pooled connection.
     connection.exec_driver_sql(
-        "SELECT set_config(%s, %s, true)", (RLS_SETTING, str(company_id))
+        "SELECT set_config(%s, %s, false)", (RLS_SETTING, str(company_id))
     )
 
 
