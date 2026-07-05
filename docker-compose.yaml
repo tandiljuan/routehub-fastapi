@@ -12,6 +12,11 @@ services:
       POSTGRES_DB: "${POSTGRES_DB:-routehub_db}"
     volumes:
       - db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U routehub_user -d routehub_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   api:
     image: routehub/api
