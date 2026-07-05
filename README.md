@@ -64,18 +64,20 @@ source .venv/bin/activate
 Now you can start the "development" HTTP server. Below is a list of environment variables accepted by the application.
 
 * `ENVIRONMENT`: Specify if you are starting the server locally (`LCL`) or in production (`PRD`).
-* `BEARER_TOKEN`: The Bearer token required to authorize API usage.
 * `RDBMS_URL`: Configures the relational database management system.
 * `RDBMS_LOG`: Boolean flag to enable database query logging.
+* `ROUTEHUB_TENANT_ALIAS`: (optional) deployment tenant alias; defaults to `client-web`.
 * `OPTIMIZER_HOST`: Sets the optimizer service host.
 * `OPTIMIZER_PORT`: Sets the optimizer service port.
 * `OPTIMIZER_AUTH`: Sets the optimizer service authentication passkey.
+
+> Authentication uses per-application **API keys** (not a shared token). See the
+> [Authentication & multi-tenancy](#authentication--multi-tenancy) section below.
 
 Next, is an example of the command to start the development server.
 
 ```bash
 ENVIRONMENT=LCL \
-BEARER_TOKEN=1234 \
 RDBMS_URL=sqlite:///sqlite/routehub.db \
 RDBMS_LOG=true \
 OPTIMIZER_HOST=http://localhost \
@@ -90,7 +92,6 @@ We can change the host and port using the `--port` and `--host` parameters, as s
 
 ```bash
 ENVIRONMENT=LCL \
-BEARER_TOKEN=1234 \
 RDBMS_URL=sqlite:///sqlite/routehub.db \
 RDBMS_LOG=true \
 OPTIMIZER_HOST=http://localhost \
@@ -98,6 +99,52 @@ OPTIMIZER_PORT=3005 \
 OPTIMIZER_AUTH=example \
 fastapi dev --host 0.0.0.0 --port 3000 main.py
 ```
+
+
+Authentication & multi-tenancy
+------------------------------
+
+The API is authenticated with **per-application API keys** — one credential per
+connecting app, stored only as a SHA-256 hash. There is no shared token and no
+client-supplied tenant header: the workspace (`company`) is derived from the key
+itself, so a caller can only ever see its own data.
+
+Send the key as a bearer token:
+
+```
+Authorization: Bearer rh_live_<key>
+```
+
+Keys are managed with a CLI (the full key is shown only once, at creation):
+
+```bash
+RDBMS_URL=... python scripts/issue_api_key.py issue --company-id 1 --name "my app"
+RDBMS_URL=... python scripts/issue_api_key.py list --company-id 1
+RDBMS_URL=... python scripts/issue_api_key.py revoke --prefix rh_live_AbCd
+```
+
+Isolation has two layers: the application filters every query by `company_id`,
+and on **Postgres** that is backed by row-level security (RLS) as defense in
+depth. All schema and RLS migrations live in the **routehub-dbschem** repository
+— see [`docs/DEPLOYMENT.md`](https://github.com/routehub/routehub-dbschem/blob/main/docs/DEPLOYMENT.md).
+This app does not ship or run any SQL migrations.
+
+> ⚠️ **RLS requires a non-superuser DB role.** Postgres superusers bypass RLS, so
+> the app must connect as a restricted role:
+>
+> ```sql
+> CREATE ROLE rh_app LOGIN PASSWORD '<secret>' NOSUPERUSER NOBYPASSRLS;
+> GRANT USAGE ON SCHEMA public TO rh_app;
+> GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rh_app;
+> GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO rh_app;
+> ```
+>
+> Point `RDBMS_URL` at `rh_app`; keep migrations and `scripts/issue_api_key.py` on
+> the owner/superuser role. SQLite has no RLS — there, the application-level
+> `company_id` filters are the only isolation.
+
+Full model, threat mapping (OWASP Multi-Tenant), roadmap, and how to run the RLS
+tests live in [`docs/security-tenancy.md`](docs/security-tenancy.md).
 
 
 Docker
