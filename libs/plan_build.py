@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import re
+import unicodedata
 from typing import Any
 
 from libs.lot_plan_adapter import (
@@ -13,7 +15,49 @@ from libs.lot_plan_adapter import (
 from libs.plan_engine_defaults import resolve_engine_config
 from libs.optimizer.models.plan_context import PlanContext
 from libs.package_wire import build_plan_address, parse_lat_lng_from_destination
+from models.company import Company
 from models.lot_config import FleetRunProfile, LotConfig, config_to_lot_config
+
+# Largo máximo de la parte de cliente del tag (mantiene filenames de grafos legibles)
+_GRAPH_TAG_MAX_LEN = 24
+
+# Las companies por usuario web se crean con alias `web-{email_local}-{uid8}`
+# (vepathos-api-doc: ensure-user-routehub-company.ts). Para el tag de grafos
+# usamos solo la parte del email, legible en los filenames del optimizer.
+_WEB_USER_ALIAS_RE = re.compile(r"^web-(.+)-[a-zA-Z0-9]{8}$")
+
+
+def _alias_for_tag(alias: str) -> str:
+    """Parte legible del alias: web-martinvizzolini-a1b2c3d4 → martinvizzolini."""
+    match = _WEB_USER_ALIAS_RE.match(alias)
+    return match.group(1) if match else alias
+
+
+def _normalize_tag_part(value: str) -> str:
+    """A-Z0-9 solamente — el parser de filenames del optimizer rechaza otros chars."""
+    decomposed = unicodedata.normalize("NFKD", value)
+    ascii_only = decomposed.encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^A-Z0-9]", "", ascii_only.upper())[:_GRAPH_TAG_MAX_LEN]
+
+
+def graph_tag_for_company(company_id: int, alias: str | None = None) -> str:
+    """Optimizer graph-cache tag, scoped per tenant (company == web user).
+
+    Prefiere el alias editable de la company: para usuarios web (alias
+    `web-{email}-{uid}`) usa la parte del email (ej. MARTINVIZZOLINI); para
+    otros aliases los normaliza enteros. Fallback a C{company_id}. El optimizer
+    lo compone con la ciudad del depot como CIUDAD_CLIENTE (ej.
+    ARTANDIL_MARTINVIZZOLINI) y reusa grafos entre clientes de la misma ciudad.
+    """
+    normalized = _normalize_tag_part(_alias_for_tag(alias)) if alias else ""
+    return normalized or f"C{company_id}"
+
+
+def graph_tag_for_lot(db, lot_db) -> str:
+    """Tag de grafos para un lote: alias de la company si existe, sino C{id}."""
+    company_id = getattr(lot_db, "company_id", 0)
+    company = db.get(Company, company_id) if company_id else None
+    return graph_tag_for_company(company_id, getattr(company, "alias", None))
 
 def lot_delivery_count(lot: dict[str, Any], *, fallback: int) -> int:
     if lot.get("delivery_count") is not None:
@@ -41,6 +85,7 @@ def build_plan_context_for_lot(
     fallback_stops_min: int,
     fallback_stops_max: int,
     delivery_count: int | None = None,
+    graph_tag: str | None = None,
 ) -> PlanContext:
     vehicles = build_plan_vehicles(
         fleet_links,
@@ -83,7 +128,7 @@ def build_plan_context_for_lot(
         origin_lat=origin_lat,
         origin_lng=origin_lng,
         zone=lot_config.zone or "MULTI",
-        tag=lot_db.milestone.name.strip().replace(" ", "_").upper(),
+        tag=graph_tag or graph_tag_for_company(getattr(lot_db, "company_id", 0)),
         vehicles=vehicles,
         addresses=addresses,
         clustering=clustering,
@@ -142,6 +187,7 @@ def lot_db_stub_from_api(lot: dict[str, Any]):
     rl = lot.get("route_limits") or {}
     ms = lot.get("milestone") or {}
     return SimpleNamespace(
+        company_id=lot.get("company_id", 0),
         route_stops_min=rl.get("stops_min"),
         route_stops_max=rl.get("stops_max"),
         route_length_min=rl.get("length_min"),

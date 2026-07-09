@@ -7,6 +7,22 @@ from .models import (
     ResultSet,
 )
 
+
+class OptimizerError(Exception):
+    """Raised when the external route optimizer request fails."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        upstream_status: int | None = None,
+        upstream_body: dict | str | None = None,
+    ):
+        super().__init__(message)
+        self.upstream_status = upstream_status
+        self.upstream_body = upstream_body
+
+
 class Optimizer():
 
     def __init__(self, host: str, port: int, auth: str = None):
@@ -14,13 +30,46 @@ class Optimizer():
         self.port = port
         self.auth = auth
 
+    def _post_session(self, url: str, payload: dict) -> str:
+        headers = {'api-key': self.auth} if self.auth else {}
+        try:
+            r = requests.post(url, json=payload, headers=headers)
+        except requests.RequestException as exc:
+            raise OptimizerError(f"Optimizer unreachable: {exc}") from exc
+        return self._session_id_from_response(r)
+
+    def _session_id_from_response(self, r: requests.Response) -> str:
+        try:
+            body = r.json()
+        except ValueError:
+            snippet = (r.text or "")[:500]
+            raise OptimizerError(
+                f"Optimizer returned non-JSON response (HTTP {r.status_code})",
+                upstream_status=r.status_code,
+                upstream_body=snippet or None,
+            ) from None
+
+        if r.ok:
+            session_id = body.get("session_id")
+            if session_id:
+                return session_id
+            raise OptimizerError(
+                "Optimizer response missing session_id",
+                upstream_status=r.status_code,
+                upstream_body=body,
+            )
+
+        detail = body.get("detail", body)
+        raise OptimizerError(
+            f"Optimizer rejected request (HTTP {r.status_code}): {detail}",
+            upstream_status=r.status_code,
+            upstream_body=body,
+        )
+
     def send_route_plan(self, plan: PlanContext) -> str:
         payload = plan_to_wire_payload(plan)
         url = f"{self.host}:{self.port}/route-optimizer-app/routes"
-        headers = {'api-key': self.auth} if self.auth else {}
-        r = requests.post(url, json=payload, headers=headers)
-        rbody = json.loads(r.text)
-        return rbody['session_id']
+        return self._post_session(url, payload)
 
     def get_plan_result(self, task_id: str) -> ResultSet:
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/{task_id}"
@@ -36,10 +85,7 @@ class Optimizer():
     def send_route_draft(self, draft: DraftSet):
         payload = draft.model_dump(serialize_as_any=True)
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize"
-        headers = {'api-key': self.auth} if self.auth else {}
-        r = requests.post(url, json=payload, headers=headers)
-        rbody = json.loads(r.text)
-        return rbody['session_id']
+        return self._post_session(url, payload)
 
     def get_draft_result(self, task_id: str) -> ResultSet:
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize/{task_id}"
