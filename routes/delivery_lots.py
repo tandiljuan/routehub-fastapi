@@ -45,13 +45,13 @@ from libs.lot_plan_adapter import (
     LotPlanConfigError,
     build_wire_type_to_vehicle_id_map,
 )
-from libs.plan_build import build_plan_context_for_lot, compute_fallback_stops
+from libs.plan_build import build_plan_context_for_lot, compute_fallback_stops, graph_tag_for_lot
 from models.delivery_plan import (
     DeliveryPath,
     DeliveryPlan,
     DeliveryRouteUpdate,
 )
-from libs.optimizer import Optimizer
+from libs.optimizer import Optimizer, OptimizerError
 from libs.optimizer.models import (
     DraftPackage,
     DraftRoute,
@@ -78,6 +78,20 @@ router = APIRouter(
     prefix="/lots",
     tags=["lots"],
 )
+
+
+def _raise_optimizer_http_error(exc: OptimizerError) -> None:
+    status = 422 if exc.upstream_status == 422 else 502
+    detail = str(exc)
+    if exc.upstream_body is not None:
+        upstream = (
+            exc.upstream_body
+            if isinstance(exc.upstream_body, str)
+            else str(exc.upstream_body)
+        )
+        if upstream and upstream not in detail:
+            detail = f"{detail} | upstream: {upstream[:500]}"
+    raise HTTPException(status_code=status, detail=detail) from exc
 
 
 def _set_optimizer_session_header(response: Response, optimizer_session_id: str | None) -> None:
@@ -208,13 +222,23 @@ async def delivery_lots_id_delete(
     id: int,
     db: DbSession,
     company_id: CompanyDep,
+    purge_deliveries: bool = False,
 ):
     lot_db = db.get(DeliveryLot, id)
     assert_company_match(lot_db, company_id, "Delivery lot")
-    if not delete_delivery_lot(db, id):
+    deleted, purged_deliveries = delete_delivery_lot(
+        db,
+        id,
+        purge_deliveries=purge_deliveries,
+    )
+    if not deleted:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
     db.commit()
-    return {"code": 200, "message": "Delivery lot Deleted"}
+    return {
+        "code": 200,
+        "message": "Delivery lot Deleted",
+        "purged_deliveries": purged_deliveries,
+    }
 
 @router.post(
     "/{id}/plan",
@@ -276,11 +300,15 @@ async def delivery_lots_id_plan_post(
             delivery_rows=delivery_rows,
             fallback_stops_min=route_stops_min,
             fallback_stops_max=route_stops_max,
+            graph_tag=graph_tag_for_lot(db, lot_db),
         )
     except LotPlanConfigError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    plan_id = optimizer.send_route_plan(plan=plan)
+    try:
+        plan_id = optimizer.send_route_plan(plan=plan)
+    except OptimizerError as exc:
+        _raise_optimizer_http_error(exc)
 
     plan_db = DeliveryPlan.model_validate({
         "delivery_lot_id": lot_db.id,
@@ -498,12 +526,15 @@ async def delivery_lots_id_plan_patch(
     draft = DraftSet(
         origin_lat=origin_lat,
         origin_lng=origin_lng,
-        tag=lot_db.milestone.name.strip().replace(' ', '_').upper(),
+        tag=graph_tag_for_lot(db, lot_db),
         optimization_params=DraftRouting(),
         routes=routes,
     )
 
-    draft_id = optimizer.send_route_draft(draft=draft)
+    try:
+        draft_id = optimizer.send_route_draft(draft=draft)
+    except OptimizerError as exc:
+        _raise_optimizer_http_error(exc)
 
     lot_db.state = DeliveryLotState.OPTIMIZING
     db.add(lot_db)

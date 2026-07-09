@@ -240,11 +240,57 @@ def load_delivery_plan_detail(db: Session, plan_id: int) -> DeliveryPlan | None:
     return db.exec(stmt).first()
 
 
-def delete_delivery_lot(db: Session, lot_id: int) -> bool:
+def _purge_unlinked_deliveries(db: Session, delivery_ids: list[int]) -> int:
+    """Delete deliveries no longer linked to any lot or route path (batched)."""
+    if not delivery_ids:
+        return 0
+
+    purged = 0
+    chunk_size = 5_000
+    for offset in range(0, len(delivery_ids), chunk_size):
+        chunk = delivery_ids[offset : offset + chunk_size]
+        still_in_lot = (
+            select(DeliveryLotDelivery.delivery_id)
+            .where(DeliveryLotDelivery.delivery_id == Delivery.id)
+            .exists()
+        )
+        still_in_path = (
+            select(DeliveryPathDelivery.delivery_id)
+            .where(DeliveryPathDelivery.delivery_id == Delivery.id)
+            .exists()
+        )
+        result = db.exec(
+            delete(Delivery).where(
+                Delivery.id.in_(chunk),
+                ~still_in_lot,
+                ~still_in_path,
+            )
+        )
+        purged += result.rowcount or 0
+    db.flush()
+    return purged
+
+
+def delete_delivery_lot(
+    db: Session,
+    lot_id: int,
+    *,
+    purge_deliveries: bool = False,
+) -> tuple[bool, int]:
     """Delete lot with plans, paths, and junction rows (ORM cascade is incomplete)."""
     lot = db.get(DeliveryLot, lot_id)
     if not lot:
-        return False
+        return False, 0
+
+    delivery_ids: list[int] = []
+    if purge_deliveries:
+        delivery_ids = list(
+            db.exec(
+                select(DeliveryLotDelivery.delivery_id).where(
+                    DeliveryLotDelivery.delivery_lot_id == lot_id
+                )
+            ).all()
+        )
 
     plan_ids = db.exec(
         select(DeliveryPlan.id).where(DeliveryPlan.delivery_lot_id == lot_id)
@@ -258,7 +304,9 @@ def delete_delivery_lot(db: Session, lot_id: int) -> bool:
     db.exec(delete(DeliveryLotDriver).where(DeliveryLotDriver.delivery_lot_id == lot_id))
     db.delete(lot)
     db.flush()
-    return True
+
+    purged = _purge_unlinked_deliveries(db, delivery_ids) if purge_deliveries else 0
+    return True, purged
 
 
 def clear_plan_paths(db: Session, plan_id: int) -> None:
