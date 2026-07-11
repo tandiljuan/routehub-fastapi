@@ -344,13 +344,19 @@ def delivery_links_for_route(
             prev = order_by_delivery.get(dlv_id)
             if prev is None or order < prev:
                 order_by_delivery[dlv_id] = order
+    # Re-enumerar secuencialmente: un waypoint fusionado (varias deliveries en la
+    # misma coordenada) hace que varias deliveries hereden el MISMO waypoint.order,
+    # y (delivery_path_id, delivery_order) tiene constraint UNIQUE en la DB.
+    # Se preserva el orden de visita del optimizer; empates (mismo waypoint) se
+    # desempatan por delivery_id para que el resultado sea determinista.
+    ordered = sorted(order_by_delivery.items(), key=lambda item: (item[1], item[0]))
     return [
         DeliveryPathDelivery(
             delivery_path_id=path_id,
             delivery_id=dlv_id,
-            delivery_order=order,
+            delivery_order=seq,
         )
-        for dlv_id, order in sorted(order_by_delivery.items(), key=lambda item: item[1])
+        for seq, (dlv_id, _wp_order) in enumerate(ordered, start=1)
     ]
 
 
