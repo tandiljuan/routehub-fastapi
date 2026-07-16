@@ -434,3 +434,11 @@ tasks:
     - SQLAlchemy + Atlas'
   type: feature
   updated_at: '2026-07-16T20:27:45.668925'
+- created_at: '2026-07-16T20:28:05.749958'
+  id: K-031
+  order: 0
+  status: in_progress
+  tags: []
+  text: Create RouteHub Swarm's declarative files for test, stage and production environments.
+  type: feature
+  updated_at: '2026-07-16T20:28:53.178749'
