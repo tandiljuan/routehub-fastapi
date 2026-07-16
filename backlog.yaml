@@ -3,17 +3,18 @@
 settings:
   dark_mode: false
   random_port: false
+  show_icebox: false
   store_images_in_subfolder: false
 tasks:
 - closed_at: '2026-02-19T20:31:42.754668'
   created_at: '2026-02-19T20:11:29.860899'
   id: K-001
-  order: 0
+  order: 1
   status: done
   tags: []
   text: Clean `delivery-plan` branch.
   type: feature
-  updated_at: '2026-02-21T22:02:17.385967'
+  updated_at: '2026-07-16T20:22:48.500119'
 - created_at: '2026-02-19T20:13:08.327730'
   id: K-002
   order: 14
@@ -50,25 +51,25 @@ tasks:
 - closed_at: '2026-02-19T20:32:01.053393'
   created_at: '2026-02-19T20:13:41.004708'
   id: K-003
-  order: 2
+  order: 3
   status: done
   tags: []
   text: 'Do not add **everything** in Dockerfile (eg: `.git`, `README.md`, etc).'
   type: chore
-  updated_at: '2026-02-21T22:02:17.386445'
+  updated_at: '2026-07-16T20:22:48.500495'
 - closed_at: '2026-02-19T20:32:17.532060'
   created_at: '2026-02-19T20:13:58.197684'
   id: K-004
-  order: 4
+  order: 5
   status: done
   tags: []
   text: Docker compose load environment variables from file.
   type: chore
-  updated_at: '2026-02-21T22:02:17.386630'
+  updated_at: '2026-07-16T20:22:48.500655'
 - closed_at: '2026-02-19T20:32:22.610463'
   created_at: '2026-02-19T20:14:57.938663'
   id: K-005
-  order: 6
+  order: 7
   status: done
   tags: []
   text: 'Disable Server Header
@@ -78,11 +79,11 @@ tasks:
 
     + [middleware](https://fastapi.tiangolo.com/tutorial/middleware/)'
   type: feature
-  updated_at: '2026-02-21T22:02:17.386783'
+  updated_at: '2026-07-16T20:22:48.500802'
 - closed_at: '2026-02-19T20:32:30.583324'
   created_at: '2026-02-19T20:16:41.680352'
   id: K-006
-  order: 8
+  order: 9
   status: done
   tags: []
   text: "FastAPI **everything else** route handler and return 401\n\n[How to capture\
@@ -95,26 +96,26 @@ tasks:
     \ index.html\n    return JSONResponse(\n        status_code=404,\n        content={\"\
     message\": f\"Oops! The path '/{full_path}' was not found.\"},\n    )\n```"
   type: feature
-  updated_at: '2026-02-21T22:02:17.386931'
+  updated_at: '2026-07-16T20:22:48.500946'
 - closed_at: '2026-02-19T20:33:04.801303'
   created_at: '2026-02-19T20:19:19.750273'
   id: K-007
-  order: 10
+  order: 11
   status: done
   tags: []
   text: Create endpoint to update/change the points/locations/deliveries in a route
     (call to 'optimizer').
   type: feature
-  updated_at: '2026-02-21T22:02:17.387088'
+  updated_at: '2026-07-16T20:22:48.501092'
 - closed_at: '2026-04-10T21:54:30.710679'
   created_at: '2026-02-19T20:20:06.858714'
   id: K-008
-  order: 14
+  order: 15
   status: done
   tags: []
   text: Custom validations (geolocation, schedules, etc).
   type: feature
-  updated_at: '2026-04-10T21:55:50.791737'
+  updated_at: '2026-07-16T20:22:48.501236'
 - created_at: '2026-02-19T20:20:26.813502'
   id: K-009
   order: 24
@@ -135,7 +136,7 @@ tasks:
 - closed_at: '2026-04-29T15:30:31.144097'
   created_at: '2026-02-19T20:21:38.239129'
   id: K-011
-  order: 16
+  order: 17
   status: done
   tags: []
   text: "Select a simple deployment system:\n  + [disco](https://github.com/letsdiscodev/cli)\
@@ -159,7 +160,7 @@ tasks:
     \ (WEB-UI)\n  + [QuickStack](https://github.com/biersoeckli/QuickStack) (WEB-UI\
     \ - K3S)\n  + [piku](https://github.com/piku/piku) (CLI - NO Containers)"
   type: epic
-  updated_at: '2026-04-29T15:30:31.144097'
+  updated_at: '2026-07-16T20:22:48.501380'
 - created_at: '2026-02-19T20:22:13.739127'
   id: K-012
   order: 6
@@ -251,10 +252,11 @@ tasks:
     + [Best Practices](https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design#implement-versioning)'
   type: feature
   updated_at: '2026-03-05T16:50:36.148370'
-- created_at: '2026-02-19T20:26:52.834154'
+- closed_at: '2026-07-16T20:22:48.501564'
+  created_at: '2026-02-19T20:26:52.834154'
   id: K-021
-  order: 0
-  status: in_progress
+  order: 19
+  status: done
   tags: []
   text: 'Update current server configurations (ssh, etc).
 
@@ -267,7 +269,7 @@ tasks:
 
     + [awesome hetzner cloud](https://github.com/hetznercloud/awesome-hcloud)'
   type: chore
-  updated_at: '2026-04-29T15:30:45.178348'
+  updated_at: '2026-07-16T20:22:48.501564'
 - created_at: '2026-02-19T20:27:27.191543'
   id: K-022
   order: 36
@@ -389,7 +391,7 @@ tasks:
 - closed_at: '2026-02-21T22:02:17.387305'
   created_at: '2026-02-19T20:52:11.333431'
   id: K-028
-  order: 12
+  order: 13
   status: done
   tags: []
   text: 'Implement fleet validation and error response
@@ -406,7 +408,7 @@ tasks:
     - **Action**: Integrate logic that evaluates capacity and updates the response
     logic to include relevant error handling.'
   type: bug
-  updated_at: '2026-02-21T22:02:17.387305'
+  updated_at: '2026-07-16T20:22:48.501749'
 - created_at: '2026-03-24T16:11:11.806288'
   id: K-029
   order: 23
