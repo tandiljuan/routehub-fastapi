@@ -378,6 +378,15 @@ async def delivery_lots_id_plan_get(
     elif DeliveryLotState.OPTIMIZING == lot_db.state:
         draft_result = optimizer.get_draft_result(task_id=plan_db.optimizer_id)
 
+        if "failed" == draft_result.status:
+            # Re-optimize worker failed — restore the previous PROCESSED plan so the
+            # lot doesn't stay stuck in OPTIMIZING (the client re-sends its moves).
+            lot_db.state = DeliveryLotState.PROCESSED
+            db.add(lot_db)
+            db.commit()
+            plan_db = load_delivery_plan_detail(db, plan_db.id)
+            return _dump_plan_or_500(plan_db)
+
         if "completed" != draft_result.status:
             return _plan_json(
                 serialize_plan_poll(lot_db.state, plan_db.optimizer_id),

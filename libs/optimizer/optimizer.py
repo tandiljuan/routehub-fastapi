@@ -94,7 +94,11 @@ class Optimizer():
         rbody = {"status": "processing"}
         if 200 == r.status_code:
             rbody = json.loads(r.text)
-            rbody['status'] = "completed"
+            # The async optimizer marks the body itself (completed/failed). Legacy
+            # versions return 200 with no status even while the worker is running —
+            # only a body with routes means the draft actually finished.
+            if not rbody.get('status'):
+                rbody['status'] = "completed" if rbody.get('routes') else "processing"
         result_set = ResultSet.model_validate(rbody)
         return result_set
 
