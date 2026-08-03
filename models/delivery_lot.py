@@ -75,7 +75,10 @@ class DeliveryLotUpdate(DeliveryLotCreate):
 class DeliveryLotResponse(DeliveryLotBase):
     id: str | int
     state: DeliveryLotState
-    milestone: MilestoneResponse
+    # La tabla declara `milestone_id: int | None` (nullable), así que la respuesta
+    # no puede exigir milestone. Sin el default, un lote sin milestone rompía
+    # GET /lots con ResponseValidationError "Field required".
+    milestone: MilestoneResponse | None = None
     deliveries: list[DeliveryResponse]
     delivery_count: int | None = None
     fleet: FleetResponse | None = None
@@ -161,19 +164,17 @@ class DeliveryLot(SQLModel, table=True):
     def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
         # Output from default serializer
         serialized = handler(self)
-        # Build 'milestone' attribute from relation
-        if self.milestone:
-            serialized['milestone'] = self.milestone.model_dump()
+        # Build 'milestone' attribute from relation (siempre presente, null si no hay)
+        serialized['milestone'] = self.milestone.model_dump() if self.milestone else None
         # Build 'fleet' attribute from relation
         if self.fleet:
             serialized['fleet'] = self.fleet.model_dump()
-        # Build 'deliveries' attribute from relations
-        if self.deliveries:
-            deliveries = []
-            for link in self.deliveries:
-                deliveries.append(link.delivery.model_dump())
-            serialized['deliveries'] = deliveries
-            serialized['delivery_count'] = len(deliveries)
+        # Build 'deliveries' attribute from relations. La clave se setea siempre:
+        # `deliveries` es requerido en DeliveryLotResponse, así que un lote vacío
+        # sin esta línea rompía la validación de respuesta.
+        deliveries = [link.delivery.model_dump() for link in (self.deliveries or [])]
+        serialized['deliveries'] = deliveries
+        serialized['delivery_count'] = len(deliveries)
         # Build 'drivers' attribute from relations
         if self.drivers:
             drivers = []
