@@ -59,7 +59,10 @@ class DeliveryUpdate(DeliveryCreate):
 
 class DeliveryResponse(DeliveryBase):
     id: str | int
-    milestone: MilestoneResponse | None
+    # `| None` SIN default sigue siendo requerido en Pydantic v2 (admite null, pero
+    # tiene que estar presente). Las deliveries sin milestone no traían la clave y
+    # la validación de RESPUESTA de FastAPI tiraba "Field required" en GET /lots.
+    milestone: MilestoneResponse | None = None
 
     @field_serializer('id', when_used='json')
     def serialize_id_to_str(self, id: int):
@@ -93,7 +96,8 @@ class Delivery(DeliveryBase, table=True):
     def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
         # Output from default serializer
         serialized = handler(self)
-        # Build 'milestone' attribute from relation
-        if self.milestone:
-            serialized['milestone'] = self.milestone.model_dump()
+        # Build 'milestone' attribute from relation. Siempre se setea la clave
+        # (null si no hay relación) para que la salida tenga forma estable y no
+        # dependa de si el milestone existe o de si la relación vino cargada.
+        serialized['milestone'] = self.milestone.model_dump() if self.milestone else None
         return serialized
