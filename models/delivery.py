@@ -79,8 +79,8 @@ class DeliveryBulkResponse(SQLModel):
 
         class Error(SQLModel):
             msg: str
-            inp: Any
-            loc: list
+            inp: Any | None = None
+            loc: list | None = None
 
 class Delivery(DeliveryBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
