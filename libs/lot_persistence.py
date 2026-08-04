@@ -206,19 +206,41 @@ def serialize_plan_poll(state: DeliveryLotState, optimizer_session_id: str | Non
     return out
 
 
+def _lot_eager_options():
+    """
+    Relations touched by `DeliveryLot.serialize_model` during `model_dump()`.
+    Without these, each lot triggers N+1: milestone, fleet, delivery/driver
+    links, plus each delivery's `milestone` (because `Delivery.serialize_model`
+    reads it too).
+    """
+    return (
+        selectinload(DeliveryLot.milestone),
+        selectinload(DeliveryLot.fleet).selectinload(Fleet.vehicles).selectinload(FleetVehicle.vehicle),
+        selectinload(DeliveryLot.deliveries)
+        .selectinload(DeliveryLotDelivery.delivery)
+        .selectinload(Delivery.milestone),
+        selectinload(DeliveryLot.drivers).selectinload(DeliveryLotDriver.driver),
+    )
+
+
 def load_delivery_lot_detail(db: Session, lot_id: int) -> DeliveryLot | None:
     """Lot + all relations (deliveries, drivers, fleet) for GET /lots/{id}."""
     stmt = (
         select(DeliveryLot)
         .where(DeliveryLot.id == lot_id)
-        .options(
-            selectinload(DeliveryLot.milestone),
-            selectinload(DeliveryLot.fleet).selectinload(Fleet.vehicles).selectinload(FleetVehicle.vehicle),
-            selectinload(DeliveryLot.deliveries).selectinload(DeliveryLotDelivery.delivery),
-            selectinload(DeliveryLot.drivers).selectinload(DeliveryLotDriver.driver),
-        )
+        .options(*_lot_eager_options())
     )
     return db.exec(stmt).first()
+
+
+def load_delivery_lots_list(db: Session, company_id: int) -> list[DeliveryLot]:
+    """Company lots with the same eager-loaded relations as detail."""
+    stmt = (
+        select(DeliveryLot)
+        .where(DeliveryLot.company_id == company_id)
+        .options(*_lot_eager_options())
+    )
+    return list(db.exec(stmt).all())
 
 
 def load_delivery_plan_detail(db: Session, plan_id: int) -> DeliveryPlan | None:
@@ -409,6 +431,10 @@ def _route_data_from_optimizer(
             if any(v is not None for v in arrival_times):
                 data["arrival_times"] = arrival_times
     for name in (
+        # The wire type is the per-instance alias. `vehicle_id` alone resolves back
+        # to the catalog row, so without this two fleet entries built on the same
+        # vehicle become indistinguishable in the plan.
+        "vehicle_type",
         "total_packages",
         "load_percentage",
         "route_volume_cm3",

@@ -24,6 +24,7 @@ from libs.lot_persistence import (
     fetch_lot_delivery_rows,
     load_delivery_lot_detail,
     load_delivery_lot_for_plan,
+    load_delivery_lots_list,
     load_delivery_plan_detail,
     persist_processing_plan_routes,
     replace_lot_deliveries,
@@ -125,11 +126,10 @@ def _dump_plan_or_500(plan_db: DeliveryPlan, optimizer_session_id: str | None = 
     response_model_exclude_none=True,
 )
 async def delivery_lots_get(db: DbSession, company_id: CompanyDep):
-    response = []
-    lot_list = db.exec(select(DeliveryLot).where(DeliveryLot.company_id == company_id)).all()
-    for l in lot_list:
-        response.append(l.model_dump())
-    return response
+    # Eager-load relations touched by the serializer; without this nested N+1
+    # (per lot: milestone, fleet, links; per delivery: the delivery and its milestone).
+    lot_list = load_delivery_lots_list(db, company_id)
+    return [l.model_dump() for l in lot_list]
 
 @router.post(
     "",
