@@ -24,7 +24,8 @@ Optional later: `PATCH /fleets/{id}`, `PATCH /lots/{id}`, then `POST /plan` agai
 | Concern | Configure on | Notes |
 |---------|--------------|-------|
 | Vehicle types & quantities | `POST /fleets` → `vehicles[].id`, `qty` | **Required** for every plan |
-| Stops / km / priority per type (default for all lots) | `POST /fleets` → `vehicles[].route`, `behavior` | Stored as `run_profile` |
+| Multiple instances of the same catalog vehicle with different limits | `POST /fleets` → repeat the same `id` with distinct `alias` per row | Each row becomes its own wire vehicle (see below) |
+| Stops / km / priority per instance | `POST /fleets` → `vehicles[].route`, `behavior` | Stored as `run_profile` per link |
 | Volume / weight on wire | `POST /vehicles` (catalog) | Unless overridden in lot `config.vehicles.*.capacity` |
 | Rebalance flags & ratios (this lot) | `POST /lots` → `config.rebalance` | Per run |
 | Start time & delivery windows (this lot) | `POST /lots` → `config.schedule` | Overlays server routing at plan time |
@@ -43,7 +44,9 @@ Optional later: `PATCH /fleets/{id}`, `PATCH /lots/{id}`, then `POST /plan` agai
 ```
 config.vehicles
 ├── defaults          → same patch applied to every vehicle type in this lot
-└── overrides[]       → patch for one type (vehicle_id = catalog id or wire name)
+└── overrides[]       → patch targeting a fleet-vehicle instance (vehicle_id = alias/wire name)
+                        or every instance of a catalog (vehicle_id = catalog id or catalog name);
+                        alias matches beat catalog matches
     └── vehicle_id
         capacity      → volume_max, weight_max (optional)
         route         → stops, distance, time (optional)
@@ -63,7 +66,7 @@ limits/behavior for types already in `fleet_id`.
 
 ## Recipe A — Fleet carries everything (recommended)
 
-**1. Fleet** with `route` and `behavior` per type:
+**1. Fleet** with `route` and `behavior` per instance:
 
 ```json
 {
@@ -78,6 +81,26 @@ limits/behavior for types already in `fleet_id`.
   ]
 }
 ```
+
+### Multiple instances of the same catalog vehicle
+
+`alias` identifies a fleet-vehicle *instance* uniquely within a fleet. Repeat
+the same catalog `id` with different aliases to give each instance its own
+route/behavior limits — the optimizer treats them as separate wire vehicles.
+
+```json
+{
+  "name": "mixed-vans",
+  "vehicles": [
+    { "id": "3", "qty": 1, "alias": "Van-A", "route": { "stops_max": 40 } },
+    { "id": "3", "qty": 1, "alias": "Van-B", "route": { "stops_max": 80 } }
+  ]
+}
+```
+
+Legacy single-instance flotas (no `alias`) still work: the server defaults the
+alias to the catalog vehicle name. `qty` remains meaningful — use it when
+several units of the *same* alias share the same limits.
 
 **2. Lot** — required fields only:
 

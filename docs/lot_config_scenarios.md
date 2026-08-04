@@ -48,6 +48,7 @@ legacy columns, units, errors, PATCH flows). Summary:
 | **Alternate fleet totals (50 / 70)** | Yes | **`33`**, **`34`** | Same run_profile; qty differs from DBO1 (60) |
 | **Time rebalance `{enabled:true}` only** | Yes | **`35`** | Wire min/max **60 / 420** min (defaults) |
 | **Volume rebalance `{enabled:true}` only** | Yes | **`36`** | Wire ratios **0.1 / 0.925** (defaults) |
+| **Per-instance limits (same catalog, distinct `alias`)** | Yes | see `tests/test_fleet_per_instance_limits.py` | Each aliased fleet row becomes its own wire vehicle |
 | **Remaining gaps** | | | |
 | `PATCH /vehicles/{id}` (catalog) | No | — | Changes volume/weight in wire; no scenario |
 | `config.vehicles.defaults.behavior` only | Partial | — | Same mechanism as `06`; no dedicated scenario |
