@@ -3,6 +3,7 @@ from pydantic import (
     field_serializer,
     model_serializer,
 )
+from sqlalchemy import UniqueConstraint
 from sqlmodel import (
     Column,
     Field,
@@ -27,6 +28,7 @@ class FleetBase(SQLModel):
 class FleetVehicleCreate(SQLModel):
     qty: int
     id: str
+    alias: str | None = None
     route: VehicleRouteConfig | None = None
     behavior: VehicleBehaviorConfig | None = None
 
@@ -44,6 +46,7 @@ class FleetUpdate(FleetCreate):
 
 class FleetVehicleResponse(VehicleResponse):
     qty: int
+    alias: str | None = None
     route: VehicleRouteConfig | None = None
     behavior: VehicleBehaviorConfig | None = None
 
@@ -68,6 +71,7 @@ class Fleet(FleetBase, table=True):
         for link in self.vehicles or []:
             v = link.vehicle.model_dump()
             v['qty'] = link.quantity
+            v['alias'] = link.alias
             if link.run_profile:
                 if link.run_profile.route is not None:
                     v['route'] = link.run_profile.route.model_dump(exclude_none=True)
@@ -79,9 +83,14 @@ class Fleet(FleetBase, table=True):
 
 class FleetVehicle(SQLModel, table=True):
     __tablename__ = "fleet_vehicle"
+    __table_args__ = (
+        UniqueConstraint("fleet_id", "alias", name="uidx__fleet_vehicle___fleet_id_alias"),
+    )
 
-    fleet_id: int | None = Field(default=None, foreign_key="fleet.id", primary_key=True)
-    vehicle_id: int | None = Field(default=None, foreign_key="vehicle.id", primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
+    fleet_id: int = Field(foreign_key="fleet.id")
+    vehicle_id: int = Field(foreign_key="vehicle.id")
+    alias: str
     quantity: int
     run_profile: FleetRunProfile | None = Field(default=None, sa_column=Column(FleetRunProfileJSON))
 

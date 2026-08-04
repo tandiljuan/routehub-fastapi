@@ -4,6 +4,7 @@ from fastapi import (
     Request,
     Response,
 )
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import Vehicle
@@ -13,6 +14,7 @@ from models.fleet import (
     FleetResponse,
     FleetUpdate,
     FleetVehicle,
+    FleetVehicleCreate,
 )
 from libs.tenant.context import CompanyDep, assert_company_match, assert_vehicle_ids_for_company
 
@@ -20,6 +22,37 @@ router = APIRouter(
     prefix="/fleets",
     tags=["fleets"],
 )
+
+
+def _resolve_alias(v: FleetVehicleCreate, veh_db: Vehicle | None) -> str:
+    if v.alias:
+        alias = v.alias.strip()
+        if not alias:
+            raise HTTPException(status_code=422, detail="Fleet vehicle alias cannot be blank")
+        return alias
+    if veh_db and veh_db.name:
+        return veh_db.name
+    return str(v.id)
+
+
+def _assert_unique_aliases(vehicles: list[FleetVehicleCreate], id_to_vehicle: dict[int, Vehicle]) -> list[str]:
+    seen: set[str] = set()
+    resolved: list[str] = []
+    for v in vehicles:
+        alias = _resolve_alias(v, id_to_vehicle.get(int(v.id)))
+        if alias in seen:
+            raise HTTPException(status_code=409, detail=f"Duplicate fleet vehicle alias {alias!r}")
+        seen.add(alias)
+        resolved.append(alias)
+    return resolved
+
+
+def _load_vehicles_by_id(db: DbSession, vehicle_ids: list[int]) -> dict[int, Vehicle]:
+    if not vehicle_ids:
+        return {}
+    rows = db.exec(select(Vehicle).where(Vehicle.id.in_(vehicle_ids))).all()
+    return {int(row.id): row for row in rows}
+
 
 @router.get(
     "",
@@ -30,7 +63,13 @@ router = APIRouter(
 )
 async def fleets_get(db: DbSession, company_id: CompanyDep):
     response = []
-    flt_list = db.exec(select(Fleet).where(Fleet.company_id == company_id)).all()
+    # Serializer walks self.vehicles and reads link.vehicle (run_profile is a
+    # JSON column, not a relation). Without both levels eager-loaded this is N+1.
+    flt_list = db.exec(
+        select(Fleet)
+        .options(selectinload(Fleet.vehicles).selectinload(FleetVehicle.vehicle))
+        .where(Fleet.company_id == company_id)
+    ).all()
     for f in flt_list:
         response.append(f.model_dump())
     return response
@@ -57,24 +96,21 @@ async def fleets_post(
     db.add(flt_db)
     db.flush()
 
-    vehicle_ids = [
-        v.id for v in (post_data.vehicles or [])
-        if int(v.qty) > 0
-    ]
+    incoming = [v for v in (post_data.vehicles or []) if int(v.qty) >= 0]
+    vehicle_ids = [int(v.id) for v in incoming if int(v.qty) > 0]
     assert_vehicle_ids_for_company(db, vehicle_ids, company_id)
 
-    for v in post_data.vehicles or []:
-        veh_id = int(v.id)
-        veh_qty = int(v.qty)
-        if veh_qty < 0:
-            continue
+    id_to_vehicle = _load_vehicles_by_id(db, [int(v.id) for v in incoming])
+    aliases = _assert_unique_aliases(incoming, id_to_vehicle)
 
-        veh_db = db.get(Vehicle, veh_id)
+    for v, alias in zip(incoming, aliases):
+        veh_db = id_to_vehicle.get(int(v.id))
         if veh_db and veh_db.company_id == company_id:
             db.add(FleetVehicle(
                 fleet_id=flt_db.id,
                 vehicle_id=veh_db.id,
-                quantity=veh_qty,
+                alias=alias,
+                quantity=int(v.qty),
                 run_profile=v.to_run_profile(),
             ))
 
@@ -121,38 +157,43 @@ async def fleets_id_patch(
         db.add(flt_db)
 
     if patch_data.vehicles is not None:
-        vehicle_ids = [
-            v.id for v in patch_data.vehicles
-            if int(v.qty) > 0
-        ]
+        incoming = [v for v in patch_data.vehicles if int(v.qty) >= 0]
+        vehicle_ids = [int(v.id) for v in incoming if int(v.qty) > 0]
         assert_vehicle_ids_for_company(db, vehicle_ids, company_id)
 
-    for v in patch_data.vehicles or []:
-        veh_id = int(v.id)
-        veh_qty = int(v.qty)
-        if veh_qty < 0:
-            continue
+        id_to_vehicle = _load_vehicles_by_id(db, [int(v.id) for v in incoming])
+        aliases = _assert_unique_aliases(incoming, id_to_vehicle)
 
-        exist = False
-        for link in flt_db.vehicles:
-            if link.vehicle_id == veh_id:
-                exist = True
-                link.quantity = veh_qty
-                link.run_profile = v.to_run_profile()
-                db.add(link)
-                break
+        existing_by_alias = {link.alias: link for link in flt_db.vehicles}
 
-        if exist:
-            continue
+        for v, alias in zip(incoming, aliases):
+            veh_id = int(v.id)
+            existing = existing_by_alias.get(alias)
+            if existing is not None:
+                if existing.vehicle_id != veh_id:
+                    raise HTTPException(status_code=409, detail=f"Alias {alias!r} bound to vehicle {existing.vehicle_id}")
+                existing.quantity = int(v.qty)
+                existing.run_profile = v.to_run_profile()
+                db.add(existing)
+                continue
 
-        veh_db = db.get(Vehicle, veh_id)
-        if veh_db and veh_db.company_id == company_id:
-            db.add(FleetVehicle(
-                fleet_id=flt_db.id,
-                vehicle_id=veh_db.id,
-                quantity=veh_qty,
-                run_profile=v.to_run_profile(),
-            ))
+            veh_db = id_to_vehicle.get(veh_id)
+            if veh_db and veh_db.company_id == company_id:
+                db.add(FleetVehicle(
+                    fleet_id=flt_db.id,
+                    vehicle_id=veh_db.id,
+                    alias=alias,
+                    quantity=int(v.qty),
+                    run_profile=v.to_run_profile(),
+                ))
+
+        # `vehicles` llega siempre completo desde el editor, así que un link que
+        # no viene en el payload fue borrado por el usuario. Sin esto el PATCH
+        # solo hacía upsert y los vehículos eliminados reaparecían al recargar.
+        keep_aliases = set(aliases)
+        for link in list(flt_db.vehicles):
+            if link.alias not in keep_aliases:
+                db.delete(link)
 
     db.commit()
 
