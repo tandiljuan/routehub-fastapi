@@ -4,6 +4,7 @@ from fastapi import (
     Request,
     Response,
 )
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from models.database import Session as DbSession
 from models.vehicle import Vehicle
@@ -30,7 +31,13 @@ router = APIRouter(
 )
 async def drivers_get(db: DbSession, company_id: CompanyDep):
     response = []
-    drv_list = db.exec(select(Driver).where(Driver.company_id == company_id)).all()
+    # Serializer walks self.vehicles and reads link.vehicle; without both levels
+    # eager-loaded this is N+1 (1 query per driver + 1 per linked vehicle).
+    drv_list = db.exec(
+        select(Driver)
+        .options(selectinload(Driver.vehicles).selectinload(DriverVehicle.vehicle))
+        .where(Driver.company_id == company_id)
+    ).all()
     for d in drv_list:
         response.append(d.model_dump())
     return response

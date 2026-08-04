@@ -5,6 +5,7 @@ from fastapi import (
     Response,
 )
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from pydantic import TypeAdapter, ValidationError
 from libs.delivery_bulk import normalize_bulk_delivery_item, parse_bulk_deliveries_body
@@ -37,7 +38,13 @@ dlv_create_adapter = TypeAdapter(DeliveryCreate)
     response_model_exclude_none=True,
 )
 async def deliveries_get(db: DbSession, company_id: CompanyDep):
-    dlv_list = db.exec(select(Delivery).where(Delivery.company_id == company_id)).all()
+    # `Delivery.serialize_model` reads self.milestone per row; without eager load
+    # the list fires one query per delivery (N+1).
+    dlv_list = db.exec(
+        select(Delivery)
+        .options(selectinload(Delivery.milestone))
+        .where(Delivery.company_id == company_id)
+    ).all()
     return dlv_list
 
 @router.post(
