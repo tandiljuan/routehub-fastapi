@@ -12,7 +12,7 @@ from libs.lot_plan_adapter import (
     build_plan_settings,
     build_plan_vehicles,
 )
-from libs.plan_engine_defaults import resolve_engine_config
+from libs.plan_engine_defaults import engine_clustering_defaults, resolve_engine_config
 from libs.optimizer.models.plan_context import PlanContext
 from libs.package_wire import build_plan_address, parse_lat_lng_from_destination
 from models.company import Company
@@ -67,9 +67,23 @@ def lot_delivery_count(lot: dict[str, Any], *, fallback: int) -> int:
         return len(deliveries)
     return fallback
 
+def cluster_size_tolerance() -> float:
+    """Optimizer cluster size tolerance (`size_cluster_tolerance`)."""
+    raw = engine_clustering_defaults().get("size_cluster_tolerance")
+    try:
+        tolerance = float(raw)
+    except (TypeError, ValueError):
+        return 0.15
+    return tolerance if tolerance > 0 else 0.15
+
+
 def compute_fallback_stops(a_sum: int, v_sum: int, lot_db) -> tuple[int, int]:
+    # Per-vehicle stop ceiling must cover the largest cluster the optimizer can
+    # emit: KMeans builds clusters up to average × (1 + size_cluster_tolerance).
+    # A tighter margin (previously a fixed 5% against a 15% tolerance) made SIZE
+    # rebalance reject clusters that clustering itself was allowed to create.
     limit_stop_min = math.ceil(a_sum * 0.95)
-    limit_stop_max = math.floor(a_sum * 1.05)
+    limit_stop_max = math.floor(a_sum * (1 + cluster_size_tolerance()))
     route_stops_min = math.floor(limit_stop_min / v_sum)
     route_stops_min = lot_db.route_stops_min if lot_db.route_stops_min else route_stops_min
     route_stops_max = math.ceil(limit_stop_max / v_sum)
@@ -163,6 +177,7 @@ def fleet_links_from_api_vehicles(vehicles: list[dict[str, Any]]) -> list:
         links.append(
             SimpleNamespace(
                 quantity=v["qty"],
+                alias=v.get("alias"),
                 vehicle=SimpleNamespace(
                     id=int(v["id"]),
                     name=v.get("name"),
