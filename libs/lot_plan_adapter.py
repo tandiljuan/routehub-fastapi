@@ -2,7 +2,7 @@
 
 The adapter joins:
   - Vehicle catalog: volume, weight, consumption, engine
-  - Fleet run_profile: qty, route, behavior per vehicle type
+  - Fleet run_profile: qty, route, behavior per fleet-vehicle instance
   - DeliveryLot legacy columns: route_stops_*, route_length_*, route_time_*
   - LotConfig: rebalance, schedule, clustering, routing, settings, optional vehicles.*
 
@@ -115,12 +115,14 @@ def build_plan_vehicle(
     fallback_stops_max: int | None = None,
 ) -> PlanVehicle:
     vehicle = fleet_link.vehicle
-    vehicle_id = str(vehicle.id)
-    wire_type = getattr(vehicle, "name", None) or vehicle_id
+    catalog_id = getattr(fleet_link, "catalog_vehicle_id", None) or str(vehicle.id)
+    catalog_name = getattr(vehicle, "name", None) or catalog_id
+    wire_type = getattr(fleet_link, "wire_type", None) or catalog_name
     cfg = _resolve_vehicle_config(
         lot_config,
-        vehicle_id,
+        catalog_id,
         wire_type=wire_type,
+        catalog_name=catalog_name,
         fleet_cfg=_fleet_vehicle_config(fleet_link),
     )
 
@@ -357,13 +359,18 @@ def build_plan_vehicles(
     fallback_stops_min: int | None = None,
     fallback_stops_max: int | None = None,
 ) -> list[PlanVehicle]:
-    qty_by_type: dict[str, int] = {}
-    vehicle_by_type: dict[str, object] = {}
+    entries: list[tuple[str, str, object, int, object | None]] = []
+    seen_wire_types: dict[str, int] = {}
 
     for link in fleet_links:
-        wire_type = getattr(link.vehicle, "name", None) or str(link.vehicle.id)
-        qty_by_type[wire_type] = link.quantity
-        vehicle_by_type[wire_type] = link.vehicle
+        wire_type = _link_wire_type(link)
+        catalog_id = str(link.vehicle.id)
+        entry = (wire_type, catalog_id, link.vehicle, link.quantity, link)
+        if wire_type in seen_wire_types:
+            entries[seen_wire_types[wire_type]] = entry
+        else:
+            seen_wire_types[wire_type] = len(entries)
+            entries.append(entry)
 
     overrides = (
         lot_config.vehicles.overrides
@@ -373,37 +380,33 @@ def build_plan_vehicles(
     for ov in overrides:
         if _override_belongs_to_fleet(ov, fleet_links):
             continue
-        wire_type = ov.vehicle_id
-        qty_by_type.setdefault(wire_type, 0)
-        vehicle_by_type.setdefault(wire_type, _stub_vehicle(wire_type))
+        if ov.vehicle_id in seen_wire_types:
+            continue
+        seen_wire_types[ov.vehicle_id] = len(entries)
+        entries.append((ov.vehicle_id, ov.vehicle_id, _stub_vehicle(ov.vehicle_id), 0, None))
 
-    fleet_cfg_by_type: dict[str, VehicleRunConfig] = {}
-    run_profile_by_type: dict[str, object | None] = {}
-    catalog_id_by_type: dict[str, str] = {}
-    for link in fleet_links:
-        wire_type = getattr(link.vehicle, "name", None) or str(link.vehicle.id)
-        run_profile_by_type[wire_type] = getattr(link, "run_profile", None)
-        fleet_cfg_by_type[wire_type] = _fleet_vehicle_config(link)
-        catalog_id_by_type[wire_type] = str(link.vehicle.id)
     ordered = sorted(
-        qty_by_type.keys(),
-        key=lambda t: _vehicle_sort_key(
+        entries,
+        key=lambda e: _vehicle_sort_key(
             lot_config,
-            catalog_id_by_type.get(t, t),
-            wire_type=t,
-            fleet_cfg=fleet_cfg_by_type.get(t),
+            e[1],
+            wire_type=e[0],
+            catalog_name=getattr(e[2], "name", None) or e[1],
+            fleet_cfg=_fleet_vehicle_config(e[4]) if e[4] is not None else VehicleRunConfig(),
         ),
     )
 
     vehicles: list[PlanVehicle] = []
-    for loop_priority, wire_type in enumerate(ordered, start=1):
-        link = _FleetLinkStub(
-            qty_by_type[wire_type],
-            vehicle_by_type[wire_type],
-            run_profile=run_profile_by_type.get(wire_type),
+    for loop_priority, (wire_type, catalog_id, vehicle, qty, link) in enumerate(ordered, start=1):
+        stub = _FleetLinkStub(
+            qty,
+            vehicle,
+            run_profile=getattr(link, "run_profile", None) if link is not None else None,
+            wire_type=wire_type,
+            catalog_vehicle_id=catalog_id,
         )
         vehicles.append(build_plan_vehicle(
-            link,
+            stub,
             lot_db,
             lot_config,
             loop_priority,
@@ -411,6 +414,13 @@ def build_plan_vehicles(
             fallback_stops_max=fallback_stops_max,
         ))
     return vehicles
+
+
+def _link_wire_type(link) -> str:
+    alias = getattr(link, "alias", None)
+    if alias:
+        return alias
+    return getattr(link.vehicle, "name", None) or str(link.vehicle.id)
 
 
 def _is_legacy_routing(stored: dict) -> bool:
@@ -422,12 +432,14 @@ def _vehicle_sort_key(
     vehicle_id: str,
     *,
     wire_type: str | None = None,
+    catalog_name: str | None = None,
     fleet_cfg: VehicleRunConfig | None = None,
 ) -> tuple:
     cfg = _resolve_vehicle_config(
         lot_config,
         vehicle_id,
         wire_type=wire_type,
+        catalog_name=catalog_name,
         fleet_cfg=fleet_cfg,
     )
     if cfg.behavior and cfg.behavior.priority is not None:
@@ -436,12 +448,15 @@ def _vehicle_sort_key(
 
 
 class _FleetLinkStub:
-    __slots__ = ("quantity", "vehicle", "run_profile")
+    __slots__ = ("quantity", "vehicle", "run_profile", "wire_type", "catalog_vehicle_id", "alias")
 
-    def __init__(self, quantity: int, vehicle: object, run_profile=None):
+    def __init__(self, quantity: int, vehicle: object, run_profile=None, wire_type=None, catalog_vehicle_id=None):
         self.quantity = quantity
         self.vehicle = vehicle
         self.run_profile = run_profile
+        self.wire_type = wire_type
+        self.catalog_vehicle_id = catalog_vehicle_id
+        self.alias = wire_type
 
 
 def _stub_vehicle(wire_type: str):
@@ -464,11 +479,15 @@ def build_wire_type_to_vehicle_id_map(fleet_links) -> dict[str, int]:
         vehicle = link.vehicle
         vid = int(vehicle.id)
         mapping[str(vid)] = vid
-        wire = getattr(vehicle, "name", None)
-        if wire:
-            mapping[wire] = vid
-            mapping[wire.lower()] = vid
-            mapping[wire.upper()] = vid
+        for candidate in (
+            getattr(vehicle, "name", None),
+            getattr(link, "alias", None),
+        ):
+            if not candidate:
+                continue
+            mapping[candidate] = vid
+            mapping[candidate.lower()] = vid
+            mapping[candidate.upper()] = vid
     return mapping
 
 
@@ -505,6 +524,7 @@ def _resolve_vehicle_config(
     vehicle_id: str,
     *,
     wire_type: str | None = None,
+    catalog_name: str | None = None,
     fleet_cfg: VehicleRunConfig | None = None,
 ) -> VehicleRunConfig:
     merged = fleet_cfg or VehicleRunConfig()
@@ -513,7 +533,12 @@ def _resolve_vehicle_config(
         return merged
     if vehicles.defaults is not None:
         merged = _merge_run_configs(merged, vehicles.defaults)
-    specific = _find_override(vehicles.overrides, vehicle_id, wire_type=wire_type)
+    specific = _find_override(
+        vehicles.overrides,
+        vehicle_id,
+        wire_type=wire_type,
+        catalog_name=catalog_name,
+    )
     if specific is not None:
         merged = _merge_run_configs(merged, specific)
     return merged
@@ -531,22 +556,36 @@ def _merge_branch(cls, base, override):
     return cls.model_validate(merged)
 
 
-def _find_override(overrides, vehicle_id: str, *, wire_type: str | None = None):
+def _find_override(
+    overrides,
+    vehicle_id: str,
+    *,
+    wire_type: str | None = None,
+    catalog_name: str | None = None,
+):
     if not overrides:
         return None
+    per_instance = None
+    per_catalog = None
     for item in overrides:
-        if item.vehicle_id == vehicle_id:
-            return item
-        if wire_type and item.vehicle_id == wire_type:
-            return item
-    return None
+        oid = item.vehicle_id
+        if wire_type and oid == wire_type:
+            per_instance = item
+            continue
+        if oid == vehicle_id:
+            per_catalog = per_catalog or item
+            continue
+        if catalog_name and oid == catalog_name:
+            per_catalog = per_catalog or item
+    return per_instance or per_catalog
 
 
 def _override_belongs_to_fleet(override, fleet_links) -> bool:
     ov_id = override.vehicle_id
     for link in fleet_links:
-        wire_type = getattr(link.vehicle, "name", None) or str(link.vehicle.id)
-        if ov_id == str(link.vehicle.id) or ov_id == wire_type:
+        catalog_name = getattr(link.vehicle, "name", None) or str(link.vehicle.id)
+        alias = getattr(link, "alias", None)
+        if ov_id == str(link.vehicle.id) or ov_id == catalog_name or ov_id == alias:
             return True
     return False
 
