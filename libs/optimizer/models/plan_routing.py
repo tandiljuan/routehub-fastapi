@@ -10,7 +10,10 @@ class PlanRouting(BaseModel):
     reorder_nearby_max_penalty: float = 1.15
     distance_haversine_limit: int = 50
     distance_factor: float = 1.55
-    start_time_minutes_route: int = 720
+    # Aligned with _DEFAULT_ROUTING in libs/plan_engine_defaults.py. On the real
+    # path this is unused (build_plan_routing requires engine_routing and passes
+    # the key explicitly), but two different defaults for the same field was confusing.
+    start_time_minutes_route: int = 800
     service_time_min: float = 2.2
     avg_speed_kph: float = 40.0
     early_tolerance_min: float = 5.0
