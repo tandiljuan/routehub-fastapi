@@ -8,6 +8,9 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from .types import (
+    Int32u,
+)
 from .company import Company
 from .vehicle import (
     Vehicle,
@@ -18,7 +21,7 @@ class FleetBase(SQLModel):
     name: str
 
 class FleetVehicleCreate(SQLModel):
-    qty: int
+    qty: Int32u
     id: str
 
 class FleetCreate(FleetBase):
