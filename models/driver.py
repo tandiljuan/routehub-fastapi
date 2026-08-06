@@ -13,6 +13,7 @@ from sqlmodel import (
 from .types import (
     Event,
     GeoPoint,
+    Int32u,
 )
 from .company import Company
 from .vehicle import (
@@ -29,7 +30,7 @@ class DriverBase(SQLModel):
     work_areas: list[list[str]] | None = Field(default=None, sa_column=Column(JSON))
 
 class DriverVehicleCreate(SQLModel):
-    qty: int
+    qty: Int32u
     id: str
 
 class DriverCreate(DriverBase):
