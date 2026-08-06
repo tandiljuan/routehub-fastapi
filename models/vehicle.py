@@ -5,6 +5,9 @@ from sqlmodel import (
     Field,
     SQLModel,
 )
+from .types import (
+    Int32u,
+)
 from .enum import (
     VehicleCategoryType,
     VehicleConsumptionUnit,
@@ -15,9 +18,9 @@ from .company import Company
 
 class VehicleBase(SQLModel):
     name: str
-    volume: int | None = Field(default=None)
+    volume: Int32u | None = Field(default=None)
     volume_unit: VolumeUnit | None = Field(default=None, sa_column=Column(Enum(VolumeUnit)))
-    consumption: int | None = Field(default=None)
+    consumption: Int32u | None = Field(default=None)
     consumption_unit: VehicleConsumptionUnit | None = Field(default=None, sa_column=Column(Enum(VehicleConsumptionUnit)))
     category_type: VehicleCategoryType | None = Field(default=None, sa_column=Column(Enum(VehicleCategoryType)))
     engine_type: VehicleEngineType | None = Field(default=None, sa_column=Column(Enum(VehicleEngineType)))
