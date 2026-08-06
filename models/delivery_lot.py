@@ -10,6 +10,9 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from .types import (
+    Int32u,
+)
 from .enum import (
     DeliveryLotState,
     LengthUnit,
@@ -34,19 +37,19 @@ from .milestone import (
 )
 
 class VehicleLimits(SQLModel):
-    volume_min: int | None = None
-    volume_max: int | None = None
-    capacity_min: int | None = None
-    capacity_max: int | None = None
+    volume_min: Int32u | None = None
+    volume_max: Int32u | None = None
+    capacity_min: Int32u | None = None
+    capacity_max: Int32u | None = None
 
 class RouteLimits(SQLModel):
-    stops_min: int | None = None
-    stops_max: int | None = None
-    length_min: int | None = None
-    length_max: int | None = None
+    stops_min: Int32u | None = None
+    stops_max: Int32u | None = None
+    length_min: Int32u | None = None
+    length_max: Int32u | None = None
     length_unit: LengthUnit | None = None
-    time_min: int | None = None
-    time_max: int | None = None
+    time_min: Int32u | None = None
+    time_max: Int32u | None = None
     time_unit: TimeUnit | None = None
 
 class DeliveryLotBase(SQLModel):

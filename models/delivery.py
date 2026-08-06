@@ -15,6 +15,7 @@ from sqlmodel import (
 from .types import (
     Event,
     GeoPoint,
+    Int32u,
 )
 from .enum import (
     DeliveryMethod,
@@ -34,17 +35,17 @@ class DeliveryBase(SQLModel):
     destination: str
     method: DeliveryMethod | None = Field(default=None, sa_column=Column(Enum(DeliveryMethod)))
     schedules: list[str] | None = Field(default=None, sa_column=Column(JSON))
-    width: int | None = Field(default=None)
-    height: int | None = Field(default=None)
-    depth: int | None = Field(default=None)
+    width: Int32u | None = Field(default=None)
+    height: Int32u | None = Field(default=None)
+    depth: Int32u | None = Field(default=None)
     length_unit: LengthUnit | None = Field(default=None, sa_column=Column(Enum(LengthUnit)))
-    volume: int | None = Field(default=None)
+    volume: Int32u | None = Field(default=None)
     volume_unit: VolumeUnit | None = Field(default=None, sa_column=Column(Enum(VolumeUnit)))
-    weight: int | None = Field(default=None)
+    weight: Int32u | None = Field(default=None)
     weight_unit: WeightUnit | None = Field(default=None, sa_column=Column(Enum(WeightUnit)))
     packaging: PackagingType | None = Field(default=None, sa_column=Column(Enum(PackagingType)))
     handling: list[SpecialHandling] | None = Field(default=None, sa_column=Column(JSON))
-    value_cents: int | None = Field(default=None)
+    value_cents: Int32u | None = Field(default=None)
     value_currency: str | None = Field(default=None)
     extra: Any | None = Field(default=None, sa_column=Column(JSON))
 
@@ -79,8 +80,8 @@ class DeliveryBulkResponse(SQLModel):
 
         class Error(SQLModel):
             msg: str
-            inp: Any
-            loc: list
+            inp: Any | None = None
+            loc: list | None = None
 
 class Delivery(DeliveryBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
