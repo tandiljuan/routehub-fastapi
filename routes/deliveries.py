@@ -82,6 +82,16 @@ async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
             })
 
         except Exception as e:
+            tx = db.get_transaction()
+            if tx is not None and not tx.is_active:
+                db.rollback()
+            errors = e.errors() if hasattr(e, "errors") else [
+                {
+                    "msg": "Invalid delivery",
+                    "input": None,
+                    "loc": None,
+                }
+            ]
             failure.append({
                 "idx": index,
                 "err": [
@@ -89,7 +99,7 @@ async def deliveries_bulk_post(db: DbSession, post_data: list[Any]):
                         "msg": error["msg"],
                         "inp": error["input"],
                         "loc": error["loc"],
-                    } for error in e.errors()
+                    } for error in errors
                 ],
             })
 
