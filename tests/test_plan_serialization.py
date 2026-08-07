@@ -178,5 +178,33 @@ class TestMergedWaypointMultiDelivery(unittest.TestCase):
         self.assertEqual(wp["delivery_ids"], ["10", "20"])
 
 
+class TestResultRouteMetricAliases(unittest.TestCase):
+    """Optimizer emits total_distance_km / total_duration_sec; RouteHub used to drop them."""
+
+    def test_accepts_optimizer_total_field_names(self):
+        route = ResultRoute.model_validate({
+            "route_geometry": [[59.5, 10.7], [59.6, 10.8]],
+            "optimized_waypoints": [],
+            "total_distance_km": 808.3,
+            "total_duration_sec": 81480,
+        })
+        self.assertEqual(route.distance_km, 808.3)
+        self.assertEqual(route.duration_sec, 81480)
+
+        data = _route_data_from_optimizer(route, 0)
+        self.assertEqual(data["total_distance_km"], 808.3)
+        self.assertEqual(data["total_duration_sec"], 81480)
+
+    def test_still_accepts_legacy_distance_km(self):
+        route = ResultRoute.model_validate({
+            "route_geometry": [[59.5, 10.7]],
+            "optimized_waypoints": [],
+            "distance_km": 12.5,
+            "duration_sec": 3600,
+        })
+        self.assertEqual(route.distance_km, 12.5)
+        self.assertEqual(route.duration_sec, 3600)
+
+
 if __name__ == "__main__":
     unittest.main()
