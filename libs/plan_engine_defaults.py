@@ -90,8 +90,45 @@ def engine_clustering_defaults() -> dict[str, Any]:
 def engine_routing_defaults() -> dict[str, Any]:
     return deepcopy(_load_json_env("PLAN_ROUTING_JSON") or _DEFAULT_ROUTING)
 
+def _apply_preprocessing_max_distance_env(settings: dict[str, Any]) -> dict[str, Any]:
+    """Overlay PLAN_PREPROCESSING_MAX_DISTANCE_KM onto settings.preprocessing.
+
+    Values:
+      unset / empty → leave defaults (or PLAN_SETTINGS_JSON) unchanged
+      number        → set preprocessing.max_distance_km to that km
+      none/null/off → remove the key so the optimizer skips distance filtering
+    """
+    raw = os.environ.get("PLAN_PREPROCESSING_MAX_DISTANCE_KM")
+    if raw is None or not str(raw).strip():
+        return settings
+
+    value = str(raw).strip().lower()
+    preprocessing = dict(settings.get("preprocessing") or {})
+
+    if value in {"none", "null", "off", "false"}:
+        preprocessing.pop("max_distance_km", None)
+    else:
+        try:
+            km = float(value)
+        except ValueError as exc:
+            raise ValueError(
+                "PLAN_PREPROCESSING_MAX_DISTANCE_KM must be a number of km, "
+                'or "none"/"off" to disable distance filtering'
+            ) from exc
+        if km <= 0:
+            raise ValueError(
+                "PLAN_PREPROCESSING_MAX_DISTANCE_KM must be > 0 "
+                '(use "none" to disable distance filtering)'
+            )
+        preprocessing["max_distance_km"] = km
+
+    settings["preprocessing"] = preprocessing
+    return settings
+
+
 def engine_settings_defaults() -> dict[str, Any]:
-    return deepcopy(_load_json_env("PLAN_SETTINGS_JSON") or _DEFAULT_SETTINGS)
+    settings = deepcopy(_load_json_env("PLAN_SETTINGS_JSON") or _DEFAULT_SETTINGS)
+    return _apply_preprocessing_max_distance_env(settings)
 
 def coerce_bool(value: Any) -> bool:
     """Normalize bools from JSON, env strings, or query params."""
