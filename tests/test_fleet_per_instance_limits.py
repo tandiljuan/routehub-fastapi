@@ -147,6 +147,52 @@ class TestAdapterPerInstance(unittest.TestCase):
         self.assertEqual(vehicles["Van-A"].deliveries_qty.max, 100)
         self.assertEqual(vehicles["Van-B"].deliveries_qty.max, 200)
 
+    def test_missing_priority_does_not_collide_with_explicit(self):
+        """bike=1, AMZ=3, van=None must not both land on priority_vehicle=3."""
+        links = [
+            SimpleNamespace(
+                quantity=20,
+                alias="bycicle",
+                vehicle=SimpleNamespace(
+                    id=1, name="bycicle", volume=None, volume_unit=None,
+                    weight=None, weight_unit=None, consumption=None,
+                    consumption_unit=None, engine_type=None,
+                ),
+                run_profile=FleetRunProfile(
+                    behavior=VehicleBehaviorConfig(priority=1),
+                ),
+            ),
+            SimpleNamespace(
+                quantity=20,
+                alias="AMZ v3",
+                vehicle=SimpleNamespace(
+                    id=2, name="AMZ v3", volume=None, volume_unit=None,
+                    weight=None, weight_unit=None, consumption=None,
+                    consumption_unit=None, engine_type=None,
+                ),
+                run_profile=FleetRunProfile(
+                    behavior=VehicleBehaviorConfig(priority=3),
+                ),
+            ),
+            SimpleNamespace(
+                quantity=20,
+                alias="van1",
+                vehicle=SimpleNamespace(
+                    id=3, name="van1", volume=None, volume_unit=None,
+                    weight=None, weight_unit=None, consumption=None,
+                    consumption_unit=None, engine_type=None,
+                ),
+                run_profile=FleetRunProfile(
+                    behavior=VehicleBehaviorConfig(overflow_vehicle=True),
+                ),
+            ),
+        ]
+        vehicles = {v.type: v for v in build_plan_vehicles(links, _lot_stub(), LotConfig())}
+        self.assertEqual(vehicles["bycicle"].priority_vehicle, 1)
+        self.assertEqual(vehicles["van1"].priority_vehicle, 2)
+        self.assertEqual(vehicles["AMZ v3"].priority_vehicle, 3)
+        self.assertTrue(vehicles["van1"].overflow_vehicle)
+
     def test_wire_map_resolves_alias_to_catalog_id(self):
         links = [
             _link(alias="Van-A", veh_id=7, name="Van", qty=1, stops_max=40),

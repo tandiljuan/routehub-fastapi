@@ -138,7 +138,8 @@ def build_plan_vehicle(
         max_volume=_max_volume(capacity, vehicle),
         max_weight=_max_weight(capacity, vehicle),
         consumption=_consumption(vehicle),
-        priority_vehicle=behavior.priority if behavior and behavior.priority is not None else priority,
+        # `priority` is always the final unique wire rank (materialized in build_plan_vehicles).
+        priority_vehicle=priority,
         overflow_vehicle=(
             behavior.overflow_vehicle
             if behavior and behavior.overflow_vehicle is not None
@@ -396,8 +397,24 @@ def build_plan_vehicles(
         ),
     )
 
+    resolved_priorities: list[int | None] = []
+    for wire_type, catalog_id, vehicle, _qty, link in ordered:
+        cfg = _resolve_vehicle_config(
+            lot_config,
+            catalog_id,
+            wire_type=wire_type,
+            catalog_name=getattr(vehicle, "name", None) or catalog_id,
+            fleet_cfg=_fleet_vehicle_config(link) if link is not None else VehicleRunConfig(),
+        )
+        pri = cfg.behavior.priority if cfg.behavior and cfg.behavior.priority is not None else None
+        resolved_priorities.append(int(pri) if pri is not None else None)
+
+    wire_priorities = _materialize_unique_priorities(resolved_priorities)
+
     vehicles: list[PlanVehicle] = []
-    for loop_priority, (wire_type, catalog_id, vehicle, qty, link) in enumerate(ordered, start=1):
+    for (wire_type, catalog_id, vehicle, qty, link), priority in zip(
+        ordered, wire_priorities, strict=True
+    ):
         stub = _FleetLinkStub(
             qty,
             vehicle,
@@ -409,11 +426,49 @@ def build_plan_vehicles(
             stub,
             lot_db,
             lot_config,
-            loop_priority,
+            priority,
             fallback_stops_min=fallback_stops_min,
             fallback_stops_max=fallback_stops_max,
         ))
     return vehicles
+
+
+def _materialize_unique_priorities(resolved: list[int | None]) -> list[int]:
+    """
+    Fill missing / duplicate behavior.priority values with unique ranks.
+
+    UI shows missing priority as array-index+1, but the wire used to omit it;
+    the previous loop_priority fallback then collided (e.g. bike=1, AMZ=3,
+    van=None → van became 3). Keep unique explicit values; fill gaps with the
+    smallest unused positive integers in sort order.
+    """
+    n = len(resolved)
+    if n == 0:
+        return []
+
+    counts: dict[int, int] = {}
+    for p in resolved:
+        if p is not None:
+            counts[p] = counts.get(p, 0) + 1
+
+    result: list[int | None] = [None] * n
+    used: set[int] = set()
+    for i, p in enumerate(resolved):
+        if p is not None and counts.get(p, 0) == 1:
+            result[i] = int(p)
+            used.add(int(p))
+
+    next_free = 1
+    for i in range(n):
+        if result[i] is not None:
+            continue
+        while next_free in used:
+            next_free += 1
+        result[i] = next_free
+        used.add(next_free)
+        next_free += 1
+
+    return [int(p) for p in result]  # type: ignore[arg-type]
 
 
 def _link_wire_type(link) -> str:
