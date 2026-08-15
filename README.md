@@ -70,6 +70,8 @@ Now you can start the "development" HTTP server. Below is a list of environment 
 * `OPTIMIZER_HOST`: Sets the optimizer service host.
 * `OPTIMIZER_PORT`: Sets the optimizer service port.
 * `OPTIMIZER_AUTH`: Sets the optimizer service authentication passkey.
+* `ENGINE_DEFAULTS_PATH`: (optional) JSON file with clustering/routing/settings knobs. Defaults to `config/engine_defaults.json`.
+* `PLAN_CLUSTERING_JSON` / `PLAN_ROUTING_JSON` / `PLAN_SETTINGS_JSON`: (optional) JSON objects merged onto the file defaults.
 
 > Authentication uses per-application **API keys** (not a shared token). See the
 > [Authentication & multi-tenancy](#authentication--multi-tenancy) section below.

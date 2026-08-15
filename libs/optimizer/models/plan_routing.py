@@ -1,26 +1,32 @@
 from pydantic import BaseModel
 
+from libs.plan_engine_defaults import _DEFAULT_ROUTING as _R
+
+
 class PlanRouting(BaseModel):
-    api_type: str = "igraph"
-    weight_routes: str = "length"
-    optimize_time_windows: bool = False
-    rectify_final_routes: bool = True
-    nearby_threshold_m: float = 50.0
-    reorder_nearby_postprocessing: bool = True
-    reorder_nearby_max_penalty: float = 1.15
-    distance_haversine_limit: int = 50
-    distance_factor: float = 1.55
-    # Aligned with _DEFAULT_ROUTING in libs/plan_engine_defaults.py. On the real
-    # path this is unused (build_plan_routing requires engine_routing and passes
-    # the key explicitly), but two different defaults for the same field was confusing.
-    start_time_minutes_route: int = 800
-    service_time_min: float = 2.2
-    avg_speed_kph: float = 40.0
-    early_tolerance_min: float = 5.0
-    late_tolerance_min: float = 10.0
-    use_graph_travel_time: bool = False
-    two_opt_fast_mode: bool = True
-    two_opt_min_improvement_pct: float = 0.0075
-    two_opt_base_max_iterations: int = 50
-    two_opt_base_consecutive_limit: int = 25
-    two_opt_base_total_limit: int = 45
+    """Typed optimizer routing payload.
+
+    Engine knobs come from ``config/engine_defaults.json``. Overlay fields
+    (schedule / client ETA) are omitted from the wire unless the lot set them.
+    """
+
+    api_type: str = _R["api_type"]
+    weight_routes: str = _R["weight_routes"]
+    rectify_final_routes: bool = _R["rectify_final_routes"]
+    nearby_threshold_m: float = _R["nearby_threshold_m"]
+    reorder_nearby_postprocessing: bool = _R["reorder_nearby_postprocessing"]
+    reorder_nearby_max_penalty: float = _R["reorder_nearby_max_penalty"]
+    distance_haversine_limit: int = _R["distance_haversine_limit"]
+    distance_factor: float = _R["distance_factor"]
+    use_graph_travel_time: bool = _R["use_graph_travel_time"]
+    two_opt_fast_mode: bool = _R["two_opt_fast_mode"]
+    two_opt_min_improvement_pct: float = _R["two_opt_min_improvement_pct"]
+    two_opt_base_max_iterations: int = _R["two_opt_base_max_iterations"]
+    two_opt_base_consecutive_limit: int = _R["two_opt_base_consecutive_limit"]
+    two_opt_base_total_limit: int = _R["two_opt_base_total_limit"]
+    optimize_time_windows: bool | None = None
+    start_time_minutes_route: int | None = None
+    service_time_min: float | None = None
+    avg_speed_kph: float | None = None
+    early_tolerance_min: float | None = None
+    late_tolerance_min: float | None = None

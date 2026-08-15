@@ -1,0 +1,38 @@
+{
+  "clustering": {
+    "size_cluster_tolerance": 0.15,
+    "allow_subclustering_by_volume": true,
+    "volume_divide_threshold": 1.4,
+    "allow_subclustering_by_capacity": true,
+    "capacity_divide_threshold": 1.5
+  },
+  "routing": {
+    "api_type": "igraph",
+    "weight_routes": "length",
+    "rectify_final_routes": true,
+    "nearby_threshold_m": 15.0,
+    "reorder_nearby_postprocessing": true,
+    "reorder_nearby_max_penalty": 1.15,
+    "distance_haversine_limit": 15,
+    "distance_factor": 1.55,
+    "use_graph_travel_time": false,
+    "two_opt_fast_mode": true,
+    "two_opt_min_improvement_pct": 0.0075,
+    "two_opt_base_max_iterations": 40,
+    "two_opt_base_consecutive_limit": 25,
+    "two_opt_base_total_limit": 25
+  },
+  "settings": {
+    "preprocessing": {
+      "enable_address_preprocessing": true,
+      "max_distance_km": 500.0
+    },
+    "hardware": {
+      "clustering_data_chunks": "auto",
+      "clustering_parallel_process": 6,
+      "routing_batch_size": 6,
+      "routing_parallel_process": 6,
+      "routing_strategy": "GRANULAR_ROUTING"
+    }
+  }
+}
