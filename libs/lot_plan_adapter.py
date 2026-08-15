@@ -335,6 +335,12 @@ def build_plan_routing(lot_config: LotConfig, *, engine_routing: dict) -> PlanRo
 
     kwargs = {k: v for k, v in stored.items() if v is not None}
 
+    # Client ETA / timing overrides (whitelist preserved on the lot).
+    if lot_config.routing is not None:
+        client_routing = lot_config.routing.model_dump(exclude_none=True)
+        for key, val in client_routing.items():
+            kwargs[key] = val
+
     if lot_config.schedule is not None:
         schedule = lot_config.schedule
         if schedule.respect_delivery_windows is not None:

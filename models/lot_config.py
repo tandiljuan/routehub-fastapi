@@ -88,6 +88,12 @@ class ClusteringConfig(SQLModel):
 
     force_vehicles_fleet_match: bool | None = None
 
+class RoutingConfig(SQLModel):
+    """Client-editable routing overrides (whitelist in CLIENT_ROUTING_KEYS)."""
+
+    service_time_min: float | None = None
+    avg_speed_kph: float | None = None
+
 class LotConfig(SQLModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -95,6 +101,7 @@ class LotConfig(SQLModel):
     rebalance: RebalanceConfig | None = None
     schedule: ScheduleConfig | None = None
     clustering: ClusteringConfig | None = None
+    routing: RoutingConfig | None = None
     zone: str | None = None
 
     def plan_date(self, fallback: date | None = None) -> str:
