@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from libs.lot_plan_adapter import (
     build_plan_clustering,
+    build_plan_routing,
     compute_cluster_sizes,
     scale_cluster_sizes_for_dynamic_fleet,
 )
@@ -13,10 +14,11 @@ from libs.plan_engine_defaults import (
     DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K,
     dynamic_fleet_cluster_size_boost,
     engine_clustering_defaults,
+    engine_routing_defaults,
     strip_engine_keys_from_config,
 )
 from libs.plan_wire import plan_to_wire_payload
-from models.lot_config import ClusteringConfig, LotConfig, config_to_lot_config
+from models.lot_config import ClusteringConfig, LotConfig, RoutingConfig, config_to_lot_config
 
 
 def _lot_db_stub():
@@ -89,25 +91,37 @@ class TestStripEngineKeys(unittest.TestCase):
                 "force_split_clusters": False,
                 "min_size_cluster": 99,
             },
-            "routing": {"avg_speed_kph": 55},
+            "routing": {
+                "avg_speed_kph": 55,
+                "service_time_min": 2.5,
+                "nearby_threshold_m": 999,
+                "two_opt_fast_mode": False,
+            },
             "vehicles": {"defaults": {}},
         }
         stripped = strip_engine_keys_from_config(raw)
         self.assertEqual(stripped["clustering"], {"force_vehicles_fleet_match": True})
-        self.assertNotIn("routing", stripped)
+        self.assertEqual(
+            stripped["routing"],
+            {"avg_speed_kph": 55, "service_time_min": 2.5},
+        )
         self.assertIn("vehicles", stripped)
 
     def test_config_to_lot_config_roundtrip(self):
         lot_config = config_to_lot_config(
             {
                 "clustering": {"force_vehicles_fleet_match": True, "force_split_clusters": True},
-                "routing": {"service_time_min": 9},
+                "routing": {"service_time_min": 9, "avg_speed_kph": 33, "nearby_threshold_m": 1},
             }
         )
         self.assertIsNotNone(lot_config)
         self.assertIsNotNone(lot_config.clustering)
         self.assertTrue(lot_config.clustering.force_vehicles_fleet_match)
         self.assertIsNone(lot_config.clustering.model_dump().get("force_split_clusters"))
+        self.assertIsNotNone(lot_config.routing)
+        self.assertEqual(lot_config.routing.service_time_min, 9)
+        self.assertEqual(lot_config.routing.avg_speed_kph, 33)
+        self.assertIsNone(lot_config.routing.model_dump().get("nearby_threshold_m"))
 
     def test_false_flag_is_preserved(self):
         lot_config = config_to_lot_config(
@@ -115,6 +129,19 @@ class TestStripEngineKeys(unittest.TestCase):
         )
         self.assertIsNotNone(lot_config.clustering)
         self.assertFalse(lot_config.clustering.force_vehicles_fleet_match)
+
+
+class TestClientRoutingOverrides(unittest.TestCase):
+    def test_build_plan_routing_merges_client_eta_fields(self):
+        engine = engine_routing_defaults()
+        lot_config = LotConfig(
+            routing=RoutingConfig(service_time_min=3.5, avg_speed_kph=28),
+        )
+        plan_routing = build_plan_routing(lot_config, engine_routing=engine)
+        self.assertEqual(plan_routing.service_time_min, 3.5)
+        self.assertEqual(plan_routing.avg_speed_kph, 28)
+        # Engine-only knobs untouched.
+        self.assertEqual(plan_routing.nearby_threshold_m, engine["nearby_threshold_m"])
 
 
 class TestPlanClusteringMerge(unittest.TestCase):
