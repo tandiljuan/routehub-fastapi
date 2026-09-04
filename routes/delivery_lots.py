@@ -1,5 +1,7 @@
+import logging
 import math
 import os
+import time
 from typing import Annotated
 from fastapi import (
     APIRouter,
@@ -66,6 +68,8 @@ OPTIMIZER_HOST = os.environ.get("OPTIMIZER_HOST")
 OPTIMIZER_PORT = os.environ.get("OPTIMIZER_PORT")
 OPTIMIZER_AUTH = os.environ.get("OPTIMIZER_AUTH")
 
+logger = logging.getLogger(__name__)
+
 optimizer = None
 
 if OPTIMIZER_HOST and OPTIMIZER_PORT:
@@ -125,7 +129,7 @@ def _dump_plan_or_500(plan_db: DeliveryPlan, optimizer_session_id: str | None = 
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def delivery_lots_get(db: DbSession, company_id: CompanyDep):
+def delivery_lots_get(db: DbSession, company_id: CompanyDep):
     # Eager-load relations touched by the serializer; without this nested N+1
     # (per lot: milestone, fleet, links; per delivery: the delivery and its milestone).
     lot_list = load_delivery_lots_list(db, company_id)
@@ -139,7 +143,7 @@ async def delivery_lots_get(db: DbSession, company_id: CompanyDep):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def delivery_lots_post(
+def delivery_lots_post(
     request: Request,
     response: Response,
     db: DbSession,
@@ -157,6 +161,12 @@ async def delivery_lots_post(
     linked_count = bulk_link_lot_deliveries(db, lot_db.id, post_data.deliveries)
     bulk_link_lot_drivers(db, lot_db.id, post_data.drivers or [])
     db.commit()
+    logger.info(
+        "lot.create company=%s lot=%s deliveries=%s",
+        company_id,
+        lot_db.id,
+        linked_count,
+    )
 
     lot_url = request.url_for("delivery_lots_id_get", id=lot_db.id)
     response.headers["location"] = f"{lot_url}"
@@ -171,7 +181,7 @@ async def delivery_lots_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def delivery_lots_id_get(id: int, db: DbSession, company_id: CompanyDep):
+def delivery_lots_id_get(id: int, db: DbSession, company_id: CompanyDep):
     lot_db = load_delivery_lot_detail(db, id)
     assert_company_match(lot_db, company_id, "Delivery lot")
     return lot_db.model_dump()
@@ -183,7 +193,7 @@ async def delivery_lots_id_get(id: int, db: DbSession, company_id: CompanyDep):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def delivery_lots_id_patch(
+def delivery_lots_id_patch(
     id: int,
     db: DbSession,
     patch_data: DeliveryLotUpdate,
@@ -218,7 +228,7 @@ async def delivery_lots_id_patch(
     return lot_db.model_dump()
 
 @router.delete("/{id}", summary="Delete lot")
-async def delivery_lots_id_delete(
+def delivery_lots_id_delete(
     id: int,
     db: DbSession,
     company_id: CompanyDep,
@@ -226,6 +236,7 @@ async def delivery_lots_id_delete(
 ):
     lot_db = db.get(DeliveryLot, id)
     assert_company_match(lot_db, company_id, "Delivery lot")
+    t0 = time.perf_counter()
     deleted, purged_deliveries = delete_delivery_lot(
         db,
         id,
@@ -234,6 +245,14 @@ async def delivery_lots_id_delete(
     if not deleted:
         raise HTTPException(status_code=404, detail="Delivery lot not found")
     db.commit()
+    logger.info(
+        "lot.delete company=%s lot=%s purge=%s purged_deliveries=%s ms=%.0f",
+        company_id,
+        id,
+        purge_deliveries,
+        purged_deliveries,
+        (time.perf_counter() - t0) * 1000,
+    )
     return {
         "code": 200,
         "message": "Delivery lot Deleted",
@@ -246,7 +265,7 @@ async def delivery_lots_id_delete(
     summary="Queue plan",
     description="No body. Sends lot to the optimizer.",
 )
-async def delivery_lots_id_plan_post(
+def delivery_lots_id_plan_post(
     id: int,
     db: DbSession,
     company_id: CompanyDep,
@@ -318,6 +337,13 @@ async def delivery_lots_id_plan_post(
     lot_db.state = DeliveryLotState.PROCESSING
     db.add(lot_db)
     db.commit()
+    logger.info(
+        "lot.plan.queue company=%s lot=%s deliveries=%s optimizer_id=%s",
+        company_id,
+        id,
+        len(delivery_rows),
+        plan_id,
+    )
 
     return {
         "code": 202,
@@ -329,7 +355,7 @@ async def delivery_lots_id_plan_post(
     summary="Get plan",
     response_model=None,
 )
-async def delivery_lots_id_plan_get(
+def delivery_lots_id_plan_get(
     id: int,
     db: DbSession,
     company_id: CompanyDep,
@@ -349,7 +375,12 @@ async def delivery_lots_id_plan_get(
     plan_db = plans[-1]
 
     if DeliveryLotState.PROCESSING == lot_db.state:
-        plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
+        # A poll that cannot reach the optimizer is a 502, not a 500 with a
+        # traceback: the plan is fine, this round-trip failed. Clients retry 5xx.
+        try:
+            plan_result = optimizer.get_plan_result(task_id=plan_db.optimizer_id)
+        except OptimizerError as exc:
+            _raise_optimizer_http_error(exc)
 
         if "completed" != plan_result.status:
             return _plan_json(
@@ -362,6 +393,7 @@ async def delivery_lots_id_plan_get(
         )
         lot_with_fleet = load_delivery_lot_for_plan(db, lot_db.id)
         wire_vehicle_map = build_wire_type_to_vehicle_id_map(lot_with_fleet.fleet.vehicles)
+        t0 = time.perf_counter()
         try:
             persist_processing_plan_routes(
                 db,
@@ -374,6 +406,13 @@ async def delivery_lots_id_plan_get(
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        logger.info(
+            "lot.plan.persist company=%s lot=%s routes=%s ms=%.0f",
+            company_id,
+            id,
+            len(plan_result.routes or []),
+            (time.perf_counter() - t0) * 1000,
+        )
 
     elif DeliveryLotState.OPTIMIZING == lot_db.state:
         draft_result = optimizer.get_draft_result(task_id=plan_db.optimizer_id)
@@ -428,7 +467,7 @@ async def delivery_lots_id_plan_get(
         "When status=completed and progress_pct=100, fetch the final plan via GET /lots/{id}/plan."
     ),
 )
-async def delivery_lots_id_plan_status_get(
+def delivery_lots_id_plan_status_get(
     id: int,
     db: DbSession,
     company_id: CompanyDep,
@@ -452,7 +491,10 @@ async def delivery_lots_id_plan_status_get(
     if not plan_db.optimizer_id:
         raise HTTPException(status_code=404, detail="No optimizer session for this plan")
 
-    status_code, body = optimizer.get_route_status(plan_db.optimizer_id)
+    try:
+        status_code, body = optimizer.get_route_status(plan_db.optimizer_id)
+    except OptimizerError as exc:
+        _raise_optimizer_http_error(exc)
     return JSONResponse(
         content=body,
         status_code=status_code,
@@ -464,7 +506,7 @@ async def delivery_lots_id_plan_status_get(
     summary="Re-optimize routes",
     status_code=202,
 )
-async def delivery_lots_id_plan_patch(
+def delivery_lots_id_plan_patch(
     id: int,
     db: DbSession,
     patch_data: Annotated[list[DeliveryRouteUpdate], Field(min_length=1)],
