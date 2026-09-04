@@ -1,4 +1,6 @@
 import json
+import os
+
 import requests
 from libs.plan_wire import plan_to_wire_payload
 from .models import (
@@ -23,6 +25,26 @@ class OptimizerError(Exception):
         self.upstream_body = upstream_body
 
 
+# (connect, read). A 30k-address plan is a multi-MB POST that the optimizer
+# hashes and writes to Redis before answering, so the read budget is generous —
+# but never unbounded: without a timeout a stalled optimizer pins a worker
+# thread forever, and enough of those exhaust the pool and take the API down.
+_POST_TIMEOUT = (
+    float(os.environ.get("OPTIMIZER_CONNECT_TIMEOUT", "10")),
+    float(os.environ.get("OPTIMIZER_READ_TIMEOUT", "180")),
+)
+_GET_TIMEOUT = (
+    float(os.environ.get("OPTIMIZER_CONNECT_TIMEOUT", "10")),
+    float(os.environ.get("OPTIMIZER_RESULT_READ_TIMEOUT", "120")),
+)
+# The status endpoint is polled every few seconds, so it gets a much shorter
+# read budget than a result fetch: a poll that hangs is worse than one that fails.
+_STATUS_TIMEOUT = (
+    float(os.environ.get("OPTIMIZER_CONNECT_TIMEOUT", "10")),
+    float(os.environ.get("OPTIMIZER_STATUS_READ_TIMEOUT", "30")),
+)
+
+
 class Optimizer():
 
     def __init__(self, host: str, port: int, auth: str = None):
@@ -33,10 +55,23 @@ class Optimizer():
     def _post_session(self, url: str, payload: dict) -> str:
         headers = {'api-key': self.auth} if self.auth else {}
         try:
-            r = requests.post(url, json=payload, headers=headers)
+            r = requests.post(url, json=payload, headers=headers, timeout=_POST_TIMEOUT)
         except requests.RequestException as exc:
             raise OptimizerError(f"Optimizer unreachable: {exc}") from exc
         return self._session_id_from_response(r)
+
+    def _get(self, url: str, timeout: tuple[float, float] = _GET_TIMEOUT) -> requests.Response:
+        """GET the optimizer, turning transport failures into OptimizerError.
+
+        Every caller runs inside a request handler, so a bare RequestException
+        (unreachable host, DNS, read timeout) would escape as a 500 with a
+        traceback instead of the 502 the routes already produce for POST.
+        """
+        headers = {'api-key': self.auth} if self.auth else {}
+        try:
+            return requests.get(url, headers=headers, timeout=timeout)
+        except requests.RequestException as exc:
+            raise OptimizerError(f"Optimizer unreachable: {exc}") from exc
 
     def _session_id_from_response(self, r: requests.Response) -> str:
         try:
@@ -73,8 +108,7 @@ class Optimizer():
 
     def get_plan_result(self, task_id: str) -> ResultSet:
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/{task_id}"
-        headers = {'api-key': self.auth} if self.auth else {}
-        r = requests.get(url, headers=headers)
+        r = self._get(url)
         rbody = {"status": "processing"}
         if 200 == r.status_code:
             rbody = json.loads(r.text)
@@ -89,8 +123,7 @@ class Optimizer():
 
     def get_draft_result(self, task_id: str) -> ResultSet:
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize/{task_id}"
-        headers = {'api-key': self.auth} if self.auth else {}
-        r = requests.get(url, headers=headers)
+        r = self._get(url)
         rbody = {"status": "processing"}
         if 200 == r.status_code:
             rbody = json.loads(r.text)
@@ -104,8 +137,7 @@ class Optimizer():
 
     def get_route_status(self, session_id: str) -> tuple[int, dict]:
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/{session_id}/status"
-        headers = {'api-key': self.auth} if self.auth else {}
-        r = requests.get(url, headers=headers, timeout=30)
+        r = self._get(url, timeout=_STATUS_TIMEOUT)
         try:
             body = r.json()
         except ValueError:
