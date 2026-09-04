@@ -29,7 +29,7 @@ router = APIRouter(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def drivers_get(db: DbSession, company_id: CompanyDep):
+def drivers_get(db: DbSession, company_id: CompanyDep):
     response = []
     # Serializer walks self.vehicles and reads link.vehicle; without both levels
     # eager-loaded this is N+1 (1 query per driver + 1 per linked vehicle).
@@ -50,7 +50,7 @@ async def drivers_get(db: DbSession, company_id: CompanyDep):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def drivers_post(
+def drivers_post(
     request: Request,
     response: Response,
     db: DbSession,
@@ -100,7 +100,7 @@ async def drivers_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def drivers_id_get(id: int, db: DbSession, company_id: CompanyDep):
+def drivers_id_get(id: int, db: DbSession, company_id: CompanyDep):
     drv_db = db.get(Driver, id)
     assert_company_match(drv_db, company_id, "Driver")
     return drv_db.model_dump()
@@ -112,7 +112,7 @@ async def drivers_id_get(id: int, db: DbSession, company_id: CompanyDep):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def drivers_id_patch(
+def drivers_id_patch(
     id: int,
     db: DbSession,
     patch_data: DriverUpdate,
@@ -165,7 +165,7 @@ async def drivers_id_patch(
     return drv_db.model_dump()
 
 @router.delete("/{id}", summary="Delete driver")
-async def drivers_id_delete(id: int, db: DbSession, company_id: CompanyDep):
+def drivers_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     drv_db = db.get(Driver, id)
     assert_company_match(drv_db, company_id, "Driver")
     db.delete(drv_db)

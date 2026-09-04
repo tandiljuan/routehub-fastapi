@@ -26,7 +26,7 @@ router = APIRouter(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def milestones_get(db: DbSession, company_id: CompanyDep):
+def milestones_get(db: DbSession, company_id: CompanyDep):
     mst_list = db.exec(select(Milestone).where(Milestone.company_id == company_id)).all()
     return mst_list
 
@@ -38,7 +38,7 @@ async def milestones_get(db: DbSession, company_id: CompanyDep):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def milestones_post(
+def milestones_post(
     request: Request,
     response: Response,
     db: DbSession,
@@ -63,7 +63,7 @@ async def milestones_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def milestones_id_get(id: int, db: DbSession, company_id: CompanyDep):
+def milestones_id_get(id: int, db: DbSession, company_id: CompanyDep):
     mst_db = db.get(Milestone, id)
     assert_company_match(mst_db, company_id, "Milestone")
     return mst_db
@@ -75,7 +75,7 @@ async def milestones_id_get(id: int, db: DbSession, company_id: CompanyDep):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdate, company_id: CompanyDep):
+def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdate, company_id: CompanyDep):
     mst_db = db.get(Milestone, id)
     assert_company_match(mst_db, company_id, "Milestone")
     mst_dict = patch_data.model_dump(exclude_unset=True)
@@ -86,7 +86,7 @@ async def milestones_id_patch(id: int, db: DbSession, patch_data: MilestoneUpdat
     return mst_db
 
 @router.delete("/{id}", summary="Delete milestone")
-async def milestones_id_delete(id: int, db: DbSession, company_id: CompanyDep):
+def milestones_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     mst_db = db.get(Milestone, id)
     assert_company_match(mst_db, company_id, "Milestone")
     db.delete(mst_db)

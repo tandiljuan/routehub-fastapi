@@ -26,7 +26,7 @@ router = APIRouter(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def vehicles_get(db: DbSession, company_id: CompanyDep):
+def vehicles_get(db: DbSession, company_id: CompanyDep):
     veh_list = db.exec(select(Vehicle).where(Vehicle.company_id == company_id)).all()
     return veh_list
 
@@ -38,7 +38,7 @@ async def vehicles_get(db: DbSession, company_id: CompanyDep):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def vehicles_post(
+def vehicles_post(
     request: Request,
     response: Response,
     db: DbSession,
@@ -63,7 +63,7 @@ async def vehicles_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def vehicles_id_get(id: int, db: DbSession, company_id: CompanyDep):
+def vehicles_id_get(id: int, db: DbSession, company_id: CompanyDep):
     veh_db = db.get(Vehicle, id)
     assert_company_match(veh_db, company_id, "Vehicle")
     return veh_db
@@ -75,7 +75,7 @@ async def vehicles_id_get(id: int, db: DbSession, company_id: CompanyDep):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate, company_id: CompanyDep):
+def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate, company_id: CompanyDep):
     veh_db = db.get(Vehicle, id)
     assert_company_match(veh_db, company_id, "Vehicle")
     veh_dict = patch_data.model_dump(exclude_unset=True)
@@ -86,7 +86,7 @@ async def vehicles_id_patch(id: int, db: DbSession, patch_data: VehicleUpdate, c
     return veh_db
 
 @router.delete("/{id}", summary="Delete vehicle")
-async def vehicles_id_delete(id: int, db: DbSession, company_id: CompanyDep):
+def vehicles_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     veh_db = db.get(Vehicle, id)
     assert_company_match(veh_db, company_id, "Vehicle")
     db.delete(veh_db)

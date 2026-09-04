@@ -61,7 +61,7 @@ def _load_vehicles_by_id(db: DbSession, vehicle_ids: list[int]) -> dict[int, Veh
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def fleets_get(db: DbSession, company_id: CompanyDep):
+def fleets_get(db: DbSession, company_id: CompanyDep):
     response = []
     # Serializer walks self.vehicles and reads link.vehicle (run_profile is a
     # JSON column, not a relation). Without both levels eager-loaded this is N+1.
@@ -82,7 +82,7 @@ async def fleets_get(db: DbSession, company_id: CompanyDep):
     response_model_exclude_none=True,
     status_code=201,
 )
-async def fleets_post(
+def fleets_post(
     request: Request,
     response: Response,
     db: DbSession,
@@ -130,7 +130,7 @@ async def fleets_post(
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def fleets_id_get(id: int, db: DbSession, company_id: CompanyDep):
+def fleets_id_get(id: int, db: DbSession, company_id: CompanyDep):
     flt_db = db.get(Fleet, id)
     assert_company_match(flt_db, company_id, "Fleet")
     return flt_db.model_dump()
@@ -142,7 +142,7 @@ async def fleets_id_get(id: int, db: DbSession, company_id: CompanyDep):
     response_model_exclude_unset=True,
     response_model_exclude_none=True,
 )
-async def fleets_id_patch(
+def fleets_id_patch(
     id: int,
     db: DbSession,
     patch_data: FleetUpdate,
@@ -201,7 +201,7 @@ async def fleets_id_patch(
     return flt_db.model_dump()
 
 @router.delete("/{id}", summary="Delete fleet")
-async def fleets_id_delete(id: int, db: DbSession, company_id: CompanyDep):
+def fleets_id_delete(id: int, db: DbSession, company_id: CompanyDep):
     flt_db = db.get(Fleet, id)
     assert_company_match(flt_db, company_id, "Fleet")
     db.delete(flt_db)
