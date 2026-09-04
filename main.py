@@ -1,4 +1,7 @@
 import os
+from contextlib import asynccontextmanager
+
+import anyio.to_thread
 from fastapi import Depends
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -26,7 +29,36 @@ _OPENAPI_DESCRIPTION = os.environ.get(
 )
 _OPENAPI_VERSION = os.environ.get("OPENAPI_VERSION", "0.21.0")
 
+# Routes are sync `def`, so FastAPI runs each request in the anyio threadpool.
+# Its default of 40 is sized for cheap handlers; ours are not — one in-flight
+# POST /deliveries/bulk holds ~8x the request body in pydantic + ORM objects
+# (~8 MB for a 1500-delivery batch). At 40 concurrent that is ~350 MB per
+# worker, on a box that also runs postgres, redis, rabbitmq, api-doc and the
+# web client. Cap it so peak memory is bounded and predictable:
+#
+#   peak RAM ~= UVICORN_WORKERS * (base RSS + THREADPOOL_LIMIT * 8 MB * 2)
+#
+# Keep RDBMS_POOL_SIZE + RDBMS_MAX_OVERFLOW >= this, or threads queue on the
+# connection pool instead of running.
+THREADPOOL_LIMIT = int(os.environ.get("THREADPOOL_LIMIT", "10"))
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    import logging
+
+    anyio.to_thread.current_default_thread_limiter().total_tokens = THREADPOOL_LIMIT
+    logging.getLogger(__name__).info(
+        "startup THREADPOOL_LIMIT=%s RDBMS_LOG=%s",
+        THREADPOOL_LIMIT,
+        str(os.environ.get("RDBMS_LOG") or "").strip().lower()
+        in {"1", "true", "on", "yes"},
+    )
+    yield
+
+
 app = FastAPI(
+    lifespan = lifespan,
     docs_url = "/docs" if IS_LCL else None,
     redoc_url = "/redoc" if IS_LCL else None,
     openapi_url = "/openapi.json" if IS_LCL else None,
