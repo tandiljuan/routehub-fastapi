@@ -39,8 +39,9 @@ class TestEngineDefaultsAreIntentional(unittest.TestCase):
         engine = resolve_engine_config()
         self.assertNotIn("preprocessing_batch_size", engine["settings"]["preprocessing"])
 
-    def test_rebalance_by_volume_on_by_default(self):
-        self.assertTrue(PlanRebalance().rebalance_by_volume)
+    def test_rebalance_by_volume_off_by_default(self):
+        # Wire default is off; lots opt in via config.rebalance.rebalance_by_volume.
+        self.assertFalse(PlanRebalance().rebalance_by_volume)
 
 
 if __name__ == "__main__":
