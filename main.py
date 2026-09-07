@@ -17,6 +17,7 @@ from routes import milestones
 from routes import deliveries
 from routes import delivery_lots
 from routes import fallback
+from routes import smart_imports
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "PRD")
 
@@ -75,6 +76,7 @@ app = FastAPI(
         {"name": "milestones", "description": "Depots and route origins."},
         {"name": "deliveries", "description": "Delivery stops."},
         {"name": "lots", "description": "Delivery lots, optimizer plans, and routes."},
+        {"name": "smart-import", "description": "Optional Smart Import proxy (SMART_IMPORT_ENABLED)."},
     ],
     dependencies=[Depends(auth)],
 )
@@ -102,6 +104,7 @@ app.include_router(drivers.router)
 app.include_router(milestones.router)
 app.include_router(deliveries.router)
 app.include_router(delivery_lots.router)
+app.include_router(smart_imports.router)
 app.include_router(fallback.router)
 
 @app.exception_handler(RequestValidationError)
