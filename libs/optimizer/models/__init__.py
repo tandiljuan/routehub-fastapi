@@ -1,6 +1,7 @@
 from .draft_route import DraftRoute
 from .draft_set import DraftRouting
 from .draft_set import DraftSet
+from .draft_set import draft_routing_from_lot
 from .draft_waypoint import DraftPackage
 from .draft_waypoint import DraftWaypoint
 from .plan_address import PlanAddress
