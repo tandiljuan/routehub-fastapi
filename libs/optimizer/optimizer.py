@@ -117,7 +117,7 @@ class Optimizer():
         return result_set
 
     def send_route_draft(self, draft: DraftSet):
-        payload = draft.model_dump(serialize_as_any=True)
+        payload = draft.model_dump(serialize_as_any=True, exclude_none=True)
         url = f"{self.host}:{self.port}/route-optimizer-app/routes/optimize"
         return self._post_session(url, payload)
 
