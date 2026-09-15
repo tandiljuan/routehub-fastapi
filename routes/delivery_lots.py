@@ -58,9 +58,9 @@ from libs.optimizer import Optimizer, OptimizerError
 from libs.optimizer.models import (
     DraftPackage,
     DraftRoute,
-    DraftRouting,
     DraftSet,
     DraftWaypoint,
+    draft_routing_from_lot,
 )
 from libs.tenant.context import CompanyDep, assert_company_match
 
@@ -578,7 +578,7 @@ def delivery_lots_id_plan_patch(
         origin_lat=origin_lat,
         origin_lng=origin_lng,
         tag=graph_tag_for_lot(db, lot_db),
-        optimization_params=DraftRouting(),
+        optimization_params=draft_routing_from_lot(lot_db.config_data),
         routes=routes,
     )
 
