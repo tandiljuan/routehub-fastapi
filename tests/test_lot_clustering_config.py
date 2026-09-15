@@ -189,6 +189,25 @@ class TestClientRoutingOverrides(unittest.TestCase):
         self.assertIsNotNone(lot_config.routing)
         self.assertFalse(lot_config.routing.use_graph_travel_time)
 
+    def test_lot_false_wins_over_an_engine_default_true(self):
+        # Proves false travels as a value: dropping it as "unset" would keep the engine's true.
+        engine = {**engine_routing_defaults(), "use_graph_travel_time": True}
+        lot_config = LotConfig(routing=RoutingConfig(use_graph_travel_time=False))
+        self.assertFalse(build_plan_routing(lot_config, engine_routing=engine).use_graph_travel_time)
+
+    def test_optimizer_wire_carries_the_flag_both_ways(self):
+        # Web lot body -> stored lot config -> the request RouteHub sends to the optimizer.
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                lot_config = config_to_lot_config({"routing": {"use_graph_travel_time": enabled, "avg_speed_kph": 30}})
+                wire = plan_to_wire_payload(_build_ctx(lot_config))
+                self.assertIs(wire["routing"]["use_graph_travel_time"], enabled)
+                self.assertEqual(wire["routing"]["avg_speed_kph"], 30)
+
+    def test_optimizer_wire_uses_the_engine_default_when_the_lot_omits_it(self):
+        wire = plan_to_wire_payload(_build_ctx(LotConfig()))
+        self.assertIs(wire["routing"]["use_graph_travel_time"], engine_routing_defaults()["use_graph_travel_time"])
+
 
 class TestPlanClusteringMerge(unittest.TestCase):
     def test_lot_force_fleet_match_overrides_engine_default(self):
