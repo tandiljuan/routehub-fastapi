@@ -2,6 +2,7 @@ import math
 import unittest
 from types import SimpleNamespace
 
+from libs.optimizer.models.draft_set import draft_routing_from_lot
 from libs.lot_plan_adapter import (
     build_plan_clustering,
     build_plan_routing,
@@ -94,6 +95,7 @@ class TestStripEngineKeys(unittest.TestCase):
             "routing": {
                 "avg_speed_kph": 55,
                 "service_time_min": 2.5,
+                "use_graph_travel_time": True,
                 "nearby_threshold_m": 999,
                 "two_opt_fast_mode": False,
             },
@@ -103,7 +105,11 @@ class TestStripEngineKeys(unittest.TestCase):
         self.assertEqual(stripped["clustering"], {"force_vehicles_fleet_match": True})
         self.assertEqual(
             stripped["routing"],
-            {"avg_speed_kph": 55, "service_time_min": 2.5},
+            {
+                "avg_speed_kph": 55,
+                "service_time_min": 2.5,
+                "use_graph_travel_time": True,
+            },
         )
         self.assertIn("vehicles", stripped)
 
@@ -111,7 +117,12 @@ class TestStripEngineKeys(unittest.TestCase):
         lot_config = config_to_lot_config(
             {
                 "clustering": {"force_vehicles_fleet_match": True, "force_split_clusters": True},
-                "routing": {"service_time_min": 9, "avg_speed_kph": 33, "nearby_threshold_m": 1},
+                "routing": {
+                    "service_time_min": 9,
+                    "avg_speed_kph": 33,
+                    "use_graph_travel_time": True,
+                    "nearby_threshold_m": 1,
+                },
             }
         )
         self.assertIsNotNone(lot_config)
@@ -121,6 +132,7 @@ class TestStripEngineKeys(unittest.TestCase):
         self.assertIsNotNone(lot_config.routing)
         self.assertEqual(lot_config.routing.service_time_min, 9)
         self.assertEqual(lot_config.routing.avg_speed_kph, 33)
+        self.assertTrue(lot_config.routing.use_graph_travel_time)
         self.assertIsNone(lot_config.routing.model_dump().get("nearby_threshold_m"))
 
     def test_false_flag_is_preserved(self):
@@ -129,6 +141,28 @@ class TestStripEngineKeys(unittest.TestCase):
         )
         self.assertIsNotNone(lot_config.clustering)
         self.assertFalse(lot_config.clustering.force_vehicles_fleet_match)
+
+
+class TestDraftRoutingFromLot(unittest.TestCase):
+    def test_true_flag_and_speed_are_sent(self):
+        lot = LotConfig(
+            routing=RoutingConfig(use_graph_travel_time=True, avg_speed_kph=32)
+        )
+        dumped = draft_routing_from_lot(lot).model_dump(exclude_none=True)
+        self.assertTrue(dumped["use_graph_travel_time"])
+        self.assertEqual(dumped["avg_speed_kph"], 32)
+        self.assertNotIn("service_time_min", dumped)
+
+    def test_false_flag_is_sent_not_omitted(self):
+        lot = LotConfig(routing=RoutingConfig(use_graph_travel_time=False))
+        dumped = draft_routing_from_lot(lot).model_dump(exclude_none=True)
+        self.assertIn("use_graph_travel_time", dumped)
+        self.assertFalse(dumped["use_graph_travel_time"])
+
+    def test_omitted_flag_stays_off_the_wire(self):
+        dumped = draft_routing_from_lot(LotConfig()).model_dump(exclude_none=True)
+        self.assertNotIn("use_graph_travel_time", dumped)
+        self.assertNotIn("avg_speed_kph", dumped)
 
 
 class TestClientRoutingOverrides(unittest.TestCase):
@@ -142,6 +176,18 @@ class TestClientRoutingOverrides(unittest.TestCase):
         self.assertEqual(plan_routing.avg_speed_kph, 28)
         # Engine-only knobs untouched.
         self.assertEqual(plan_routing.nearby_threshold_m, engine["nearby_threshold_m"])
+
+    def test_build_plan_routing_lot_travel_time_wins_over_engine_default(self):
+        engine = engine_routing_defaults()
+        self.assertFalse(engine["use_graph_travel_time"])
+        lot_config = LotConfig(routing=RoutingConfig(use_graph_travel_time=True))
+        plan_routing = build_plan_routing(lot_config, engine_routing=engine)
+        self.assertTrue(plan_routing.use_graph_travel_time)
+
+    def test_false_graph_travel_time_is_preserved(self):
+        lot_config = config_to_lot_config({"routing": {"use_graph_travel_time": False}})
+        self.assertIsNotNone(lot_config.routing)
+        self.assertFalse(lot_config.routing.use_graph_travel_time)
 
 
 class TestPlanClusteringMerge(unittest.TestCase):
