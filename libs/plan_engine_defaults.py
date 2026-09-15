@@ -16,6 +16,7 @@ CLIENT_CLUSTERING_KEYS = frozenset({"force_vehicles_fleet_match"})
 CLIENT_ROUTING_KEYS = frozenset({
     "service_time_min",
     "avg_speed_kph",
+    "use_graph_travel_time",
 })
 
 # Lot/schedule overlays — never stored in engine_defaults.json.
