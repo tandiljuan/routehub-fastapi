@@ -12,6 +12,10 @@ Precedence per vehicle field: overrides > defaults > fleet.run_profile > route_l
 Planning requires lot.config.routing and .settings. Clustering min/max and
 settings.preprocessing_batch_size fall back to legacy formulas when omitted.
 Rebalance falls back to PlanRebalance defaults when omitted.
+
+Stop-band margin (shared with MCP / RapidAPI): prefer
+  min_stops ≤ floor(max_stops × STOP_MARGIN_RATIO)
+when force_vehicles_fleet_match builds one route per declared van.
 """
 
 import logging
@@ -47,6 +51,9 @@ from libs.optimizer.models.plan_vehicle import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Keep in sync with api-doc STOP_MARGIN_RATIO and vepathos-mcp preflight_checks.
+STOP_MARGIN_RATIO = 0.8
 
 _VOLUME_WIRE_UNITS: dict[VolumeUnit, str] = {
     VolumeUnit.CUBIC_CENTIMETER: "cm3",
@@ -656,6 +663,14 @@ def _deliveries_qty(route, lot_db, fallback_min, fallback_max):
     cfg_max = route.stops_max if route else None
     smin = cfg_min or getattr(lot_db, "route_stops_min", None) or fallback_min
     smax = cfg_max or getattr(lot_db, "route_stops_max", None) or fallback_max
+    if smin is not None and smax is not None and smin > math.floor(smax * STOP_MARGIN_RATIO):
+        logging.getLogger(__name__).warning(
+            "tight_stop_margin: min_stops=%s above floor(max×%s)=%s (max=%s)",
+            smin,
+            STOP_MARGIN_RATIO,
+            math.floor(smax * STOP_MARGIN_RATIO),
+            smax,
+        )
     return DeliveriesQuantity(min=smin, max=smax) if (smin or smax) else None
 
 
