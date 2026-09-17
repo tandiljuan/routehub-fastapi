@@ -10,7 +10,8 @@ class PlanRebalance(BaseModel):
     min_volume_capacity_ratio_vehicle_initial: float = 0.4
     max_volume_capacity_ratio_vehicle_initial: float = 0.95
     min_volume_capacity_ratio_vehicle: float = 0.1
-    max_volume_capacity_ratio_vehicle: float = 0.925
+    # 95% like every channel (engine default); a lot asks for 1.0 to fill vehicles completely.
+    max_volume_capacity_ratio_vehicle: float = 0.95
     max_volume_capacity_ratio_total: float = 0.99
 
     min_weight_capacity_ratio_vehicle: float = 0.01
