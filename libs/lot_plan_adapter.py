@@ -9,8 +9,8 @@ The adapter joins:
 Precedence per vehicle field: overrides > defaults > fleet.run_profile > route_limits
 > POST /plan fallback stops.
 
-Planning requires lot.config.routing and .settings. Clustering min/max and
-settings.preprocessing_batch_size fall back to legacy formulas when omitted.
+Engine tuning, cluster sizes, force_split_clusters and preprocessing_batch_size are not
+sent: the optimizer computes them (route-optimizer-app src/helpers/engine_defaults.py).
 Rebalance falls back to PlanRebalance defaults when omitted.
 
 Stop band (shared by every channel, enforced by the engine in route-optimizer-app
@@ -39,7 +39,7 @@ from models.lot_config import (
     as_utc,
 )
 from libs.optimizer.models.plan_clustering import PlanClustering
-from libs.plan_engine_defaults import coerce_bool, dynamic_fleet_cluster_size_boost
+from libs.plan_engine_defaults import coerce_bool
 from libs.optimizer.models.plan_rebalance import PlanRebalance
 from libs.optimizer.models.plan_routing import PlanRouting
 from libs.optimizer.models.plan_settings import PlanSettings
@@ -161,134 +161,17 @@ class LotPlanConfigError(ValueError):
     pass
 
 
-class ClusteringConfigError(LotPlanConfigError):
-    pass
-
-
-class RoutingConfigError(LotPlanConfigError):
-    pass
-
-
-class SettingsConfigError(LotPlanConfigError):
-    pass
-
-
-def compute_cluster_sizes(a_sum: int, v_sum: int) -> tuple[int, int]:
-    if v_sum <= 0:
-        raise ClusteringConfigError(
-            'cannot auto-compute clustering sizes without fleet vehicles (v_sum > 0)'
-        )
-    if a_sum <= 0:
-        raise ClusteringConfigError(
-            'cannot auto-compute clustering sizes without deliveries (a_sum > 0)'
-        )
-    max_size_cluster = math.ceil(a_sum / v_sum)
-    min_size_cluster = math.floor(max_size_cluster / 2)
-    return min_size_cluster, max_size_cluster
-
-
-def scale_cluster_sizes_for_dynamic_fleet(
-    min_size_cluster: int,
-    max_size_cluster: int,
-    *,
-    delivery_count: int,
-    boost: float | None = None,
-) -> tuple[int, int]:
-    multiplier = (
-        boost
-        if boost is not None
-        else dynamic_fleet_cluster_size_boost(delivery_count)
-    )
-    if multiplier <= 1.0:
-        return min_size_cluster, max_size_cluster
-    return (
-        math.ceil(min_size_cluster * multiplier),
-        math.ceil(max_size_cluster * multiplier),
-    )
-
-
-def compute_preprocessing_batch_size(max_size_cluster: int) -> int:
-    """Legacy fallback: preprocessing batch = max cluster size × 4."""
-    return max_size_cluster * 4
-
-
-def resolve_force_split_clusters(force_vehicles_fleet_match: bool) -> bool:
-    """Full fleet: one cluster per vehicle. Dynamic fleet: allow splitting oversized clusters."""
-    return not force_vehicles_fleet_match
-
-
-def build_plan_clustering(
-    *,
-    engine_clustering: dict,
-    a_sum: int | None = None,
-    v_sum: int | None = None,
-) -> PlanClustering:
+def build_plan_clustering(*, engine_clustering: dict) -> PlanClustering:
     stored = dict(engine_clustering)
     if "force_vehicles_fleet_match" in stored:
         stored["force_vehicles_fleet_match"] = coerce_bool(
             stored["force_vehicles_fleet_match"]
         )
-    force_fleet_match = stored.get("force_vehicles_fleet_match")
-    has_counts = bool(a_sum and v_sum)
-
-    if force_fleet_match is False and has_counts:
-        base_min, base_max = compute_cluster_sizes(a_sum, v_sum)
-        boost = dynamic_fleet_cluster_size_boost(a_sum)
-        min_s, max_s = scale_cluster_sizes_for_dynamic_fleet(
-            base_min,
-            base_max,
-            delivery_count=a_sum,
-            boost=boost,
-        )
-        stored["min_size_cluster"] = min_s
-        stored["max_size_cluster"] = max_s
-        logger.info(
-            "dynamic fleet clustering boost: deliveries=%s vehicles=%s "
-            "base=%s/%s boosted=%s/%s multiplier=%.2f",
-            a_sum,
-            v_sum,
-            base_min,
-            base_max,
-            min_s,
-            max_s,
-            boost,
-        )
-    elif (
-        stored.get("min_size_cluster") is None or stored.get("max_size_cluster") is None
-    ) and has_counts:
-        min_s, max_s = compute_cluster_sizes(a_sum, v_sum)
-        stored.setdefault("min_size_cluster", min_s)
-        stored.setdefault("max_size_cluster", max_s)
-
-    force_fleet_match = coerce_bool(stored.get("force_vehicles_fleet_match", False))
-    stored["force_split_clusters"] = resolve_force_split_clusters(force_fleet_match)
-
     return PlanClustering.model_validate(stored)
 
 
-def build_plan_settings(
-    *,
-    engine_settings: dict,
-    max_size_cluster: int | None = None,
-) -> PlanSettings:
-    if not engine_settings:
-        raise SettingsConfigError(
-            'server engine settings are required for planning '
-            '(preprocessing, hardware, ...)'
-        )
-    stored = dict(engine_settings)
-    pre = dict(stored.get("preprocessing") or {})
-    if pre.get("preprocessing_batch_size") is None:
-        if max_size_cluster is None:
-            raise SettingsConfigError(
-                'preprocessing_batch_size missing and cannot auto-compute '
-                'without resolved max_size_cluster'
-            )
-        pre["preprocessing_batch_size"] = compute_preprocessing_batch_size(max_size_cluster)
-        if pre.get("enable_address_preprocessing") is None:
-            pre["enable_address_preprocessing"] = True
-        stored["preprocessing"] = pre
-    return PlanSettings.model_validate(stored)
+def build_plan_settings(*, engine_settings: dict) -> PlanSettings:
+    return PlanSettings.model_validate(dict(engine_settings or {}))
 
 
 def build_plan_rebalance(lot_config: LotConfig, lot_db=None) -> PlanRebalance:
@@ -330,19 +213,7 @@ def _flag(branch) -> bool:
 
 
 def build_plan_routing(lot_config: LotConfig, *, engine_routing: dict) -> PlanRouting:
-    stored = engine_routing
-    if not stored:
-        raise RoutingConfigError(
-            'server engine routing is required for planning '
-            '(nearby_threshold_m, service_time_min, ...)'
-        )
-    if _is_legacy_routing(stored):
-        raise RoutingConfigError(
-            'server routing config is legacy-shaped; include nearby_threshold_m '
-            'and explicit routing fields'
-        )
-
-    kwargs = {k: v for k, v in stored.items() if v is not None}
+    kwargs = {k: v for k, v in (engine_routing or {}).items() if v is not None}
 
     # Client ETA / timing overrides (whitelist preserved on the lot).
     if lot_config.routing is not None:
@@ -491,10 +362,6 @@ def _link_wire_type(link) -> str:
     if alias:
         return alias
     return getattr(link.vehicle, "name", None) or str(link.vehicle.id)
-
-
-def _is_legacy_routing(stored: dict) -> bool:
-    return 'nearby_threshold_m' not in stored
 
 
 def _vehicle_sort_key(

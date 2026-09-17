@@ -11,8 +11,9 @@ ENGINE_CONFIG_KEYS = frozenset({"clustering", "routing", "settings"})
 # Clustering keys the web client may set per run (rest stay server-owned).
 CLIENT_CLUSTERING_KEYS = frozenset({"force_vehicles_fleet_match"})
 
-# Routing keys the web client may override per run (ETA / timing). Engine-only
-# knobs (2-opt, nearby, haversine, …) stay server-owned.
+# Routing keys the web client may override per run (ETA / timing). Engine tuning
+# (2-opt, nearby, haversine, …) is not sent: the optimizer owns those defaults
+# (route-optimizer-app src/helpers/engine_defaults.py).
 CLIENT_ROUTING_KEYS = frozenset({
     "service_time_min",
     "avg_speed_kph",
@@ -21,36 +22,13 @@ CLIENT_ROUTING_KEYS = frozenset({
 
 # Lot/schedule overlays — never stored in engine_defaults.json.
 # start_time / time-window flags come from config.schedule; fleet-match from
-# config.clustering; force_split_clusters is derived in build_plan_clustering.
+# config.clustering. Cluster sizes, force_split_clusters and preprocessing_batch_size
+# are computed by the optimizer when the plan omits them.
 SCHEDULE_ROUTING_KEYS = frozenset({
     "optimize_time_windows",
     "start_time_minutes_route",
     "early_tolerance_min",
     "late_tolerance_min",
-})
-
-REQUIRED_CLUSTERING_KEYS = frozenset({
-    "size_cluster_tolerance",
-    "allow_subclustering_by_volume",
-    "volume_divide_threshold",
-    "allow_subclustering_by_capacity",
-    "capacity_divide_threshold",
-})
-REQUIRED_ROUTING_KEYS = frozenset({
-    "api_type",
-    "weight_routes",
-    "rectify_final_routes",
-    "nearby_threshold_m",
-    "reorder_nearby_postprocessing",
-    "reorder_nearby_max_penalty",
-    "distance_haversine_limit",
-    "distance_factor",
-    "use_graph_travel_time",
-    "two_opt_fast_mode",
-    "two_opt_min_improvement_pct",
-    "two_opt_base_max_iterations",
-    "two_opt_base_consecutive_limit",
-    "two_opt_base_total_limit",
 })
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -77,28 +55,16 @@ def _load_engine_defaults_file() -> dict[str, Any]:
         section = loaded.get(key)
         if not isinstance(section, dict):
             raise ValueError(f"{path} must include a JSON object at '{key}'")
-    missing_c = REQUIRED_CLUSTERING_KEYS - loaded["clustering"].keys()
-    if missing_c:
-        raise ValueError(f"{path} clustering missing keys: {sorted(missing_c)}")
-    missing_r = REQUIRED_ROUTING_KEYS - loaded["routing"].keys()
-    if missing_r:
-        raise ValueError(f"{path} routing missing keys: {sorted(missing_r)}")
     return loaded
 
 
-# Loaded from config/engine_defaults.json (or ENGINE_DEFAULTS_PATH).
-# PLAN_*_JSON env vars merge on top at resolve time.
+# Loaded from config/engine_defaults.json (or ENGINE_DEFAULTS_PATH). Empty by default:
+# the optimizer owns tuning defaults. PLAN_*_JSON env vars merge on top at resolve time
+# and are only for deliberate per-deploy overrides.
 _ENGINE_DEFAULTS = _load_engine_defaults_file()
 _DEFAULT_CLUSTERING: dict[str, Any] = _ENGINE_DEFAULTS["clustering"]
 _DEFAULT_ROUTING: dict[str, Any] = _ENGINE_DEFAULTS["routing"]
 _DEFAULT_SETTINGS: dict[str, Any] = _ENGINE_DEFAULTS["settings"]
-
-# Tiered multipliers for dynamic fleet (force_vehicles_fleet_match=false).
-DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_LOW = 2000
-DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_MID = 5000
-DYNAMIC_FLEET_CLUSTER_BOOST_UP_TO_2K = 1.0
-DYNAMIC_FLEET_CLUSTER_BOOST_2K_TO_5K = 1.15
-DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K = 1.25
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
     out = dict(base)
@@ -188,14 +154,6 @@ def coerce_bool(value: Any) -> bool:
             return False
     return bool(value)
 
-
-def dynamic_fleet_cluster_size_boost(delivery_count: int) -> float:
-    """Scale auto min/max cluster sizes by stop volume when dynamic fleet is enabled."""
-    if delivery_count <= DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_LOW:
-        return DYNAMIC_FLEET_CLUSTER_BOOST_UP_TO_2K
-    if delivery_count <= DYNAMIC_FLEET_CLUSTER_BOOST_STOP_TIER_MID:
-        return DYNAMIC_FLEET_CLUSTER_BOOST_2K_TO_5K
-    return DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K
 
 def resolve_engine_config(overlay: dict[str, Any] | None = None) -> dict[str, Any]:
     resolved = {

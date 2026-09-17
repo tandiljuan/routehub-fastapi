@@ -68,7 +68,11 @@ def lot_delivery_count(lot: dict[str, Any], *, fallback: int) -> int:
     return fallback
 
 def cluster_size_tolerance() -> float:
-    """Optimizer cluster size tolerance (`size_cluster_tolerance`)."""
+    """Optimizer cluster size tolerance (`size_cluster_tolerance`).
+
+    0.15 mirrors the optimizer default (route-optimizer-app src/helpers/engine_defaults.py);
+    PLAN_CLUSTERING_JSON can still override it for this check.
+    """
     raw = engine_clustering_defaults().get("size_cluster_tolerance")
     try:
         tolerance = float(raw)
@@ -112,8 +116,6 @@ def build_plan_context_for_lot(
         build_plan_address(destination, extra, delivery_id=int(dlv_id))
         for dlv_id, destination, extra in delivery_rows
     ]
-    a_sum = delivery_count if delivery_count is not None else len(delivery_rows)
-    v_sum = sum(link.quantity for link in fleet_links)
     engine = resolve_engine_config()
     clustering_dict = dict(engine["clustering"])
     if (
@@ -123,16 +125,9 @@ def build_plan_context_for_lot(
         clustering_dict["force_vehicles_fleet_match"] = (
             lot_config.clustering.force_vehicles_fleet_match
         )
-    clustering = build_plan_clustering(
-        engine_clustering=clustering_dict,
-        a_sum=a_sum,
-        v_sum=v_sum,
-    )
+    clustering = build_plan_clustering(engine_clustering=clustering_dict)
     routing = build_plan_routing(lot_config, engine_routing=engine["routing"])
-    settings = build_plan_settings(
-        engine_settings=engine["settings"],
-        max_size_cluster=clustering.max_size_cluster,
-    )
+    settings = build_plan_settings(engine_settings=engine["settings"])
     rebalance = build_plan_rebalance(lot_config, lot_db)
 
     origin_lat, origin_lng = parse_lat_lng_from_destination(lot_db.milestone.location)

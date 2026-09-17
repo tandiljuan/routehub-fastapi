@@ -1,20 +1,10 @@
-import math
 import unittest
 from types import SimpleNamespace
 
 from libs.optimizer.models.draft_set import draft_routing_from_lot
-from libs.lot_plan_adapter import (
-    build_plan_clustering,
-    build_plan_routing,
-    compute_cluster_sizes,
-    scale_cluster_sizes_for_dynamic_fleet,
-)
+from libs.lot_plan_adapter import build_plan_clustering, build_plan_routing
 from libs.plan_build import build_plan_context_for_lot
 from libs.plan_engine_defaults import (
-    DYNAMIC_FLEET_CLUSTER_BOOST_2K_TO_5K,
-    DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K,
-    dynamic_fleet_cluster_size_boost,
-    engine_clustering_defaults,
     engine_routing_defaults,
     strip_engine_keys_from_config,
 )
@@ -68,20 +58,6 @@ def _build_ctx(
         fallback_stops_max=20,
         delivery_count=delivery_count,
     )
-
-
-class TestDynamicFleetBoostTiers(unittest.TestCase):
-    def test_up_to_2k_stops_no_boost(self):
-        self.assertEqual(dynamic_fleet_cluster_size_boost(0), 1.0)
-        self.assertEqual(dynamic_fleet_cluster_size_boost(2000), 1.0)
-
-    def test_between_2k_and_5k_stops_uses_115(self):
-        self.assertEqual(dynamic_fleet_cluster_size_boost(2001), DYNAMIC_FLEET_CLUSTER_BOOST_2K_TO_5K)
-        self.assertEqual(dynamic_fleet_cluster_size_boost(5000), DYNAMIC_FLEET_CLUSTER_BOOST_2K_TO_5K)
-
-    def test_above_5k_stops_uses_125(self):
-        self.assertEqual(dynamic_fleet_cluster_size_boost(5001), DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K)
-        self.assertEqual(dynamic_fleet_cluster_size_boost(8205), DYNAMIC_FLEET_CLUSTER_BOOST_ABOVE_5K)
 
 
 class TestStripEngineKeys(unittest.TestCase):
@@ -174,12 +150,11 @@ class TestClientRoutingOverrides(unittest.TestCase):
         plan_routing = build_plan_routing(lot_config, engine_routing=engine)
         self.assertEqual(plan_routing.service_time_min, 3.5)
         self.assertEqual(plan_routing.avg_speed_kph, 28)
-        # Engine-only knobs untouched.
-        self.assertEqual(plan_routing.nearby_threshold_m, engine["nearby_threshold_m"])
+        # Engine tuning stays unset: the optimizer applies its own defaults.
+        self.assertIsNone(plan_routing.nearby_threshold_m)
 
     def test_build_plan_routing_lot_travel_time_wins_over_engine_default(self):
         engine = engine_routing_defaults()
-        self.assertFalse(engine["use_graph_travel_time"])
         lot_config = LotConfig(routing=RoutingConfig(use_graph_travel_time=True))
         plan_routing = build_plan_routing(lot_config, engine_routing=engine)
         self.assertTrue(plan_routing.use_graph_travel_time)
@@ -204,9 +179,10 @@ class TestClientRoutingOverrides(unittest.TestCase):
                 self.assertIs(wire["routing"]["use_graph_travel_time"], enabled)
                 self.assertEqual(wire["routing"]["avg_speed_kph"], 30)
 
-    def test_optimizer_wire_uses_the_engine_default_when_the_lot_omits_it(self):
+    def test_optimizer_wire_omits_the_flag_when_the_lot_omits_it(self):
+        # The optimizer applies its own default (false).
         wire = plan_to_wire_payload(_build_ctx(LotConfig()))
-        self.assertIs(wire["routing"]["use_graph_travel_time"], engine_routing_defaults()["use_graph_travel_time"])
+        self.assertNotIn("use_graph_travel_time", wire.get("routing") or {})
 
 
 class TestPlanClusteringMerge(unittest.TestCase):
@@ -225,116 +201,30 @@ class TestPlanClusteringMerge(unittest.TestCase):
         ctx = _build_ctx(lot_config)
         self.assertFalse(ctx.clustering.force_vehicles_fleet_match)
 
-    def test_server_owned_clustering_keys_unchanged_by_lot(self):
-        lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=True))
-        ctx = _build_ctx(lot_config)
-        self.assertFalse(ctx.clustering.force_split_clusters)
-
-    def test_dynamic_fleet_enables_force_split_clusters(self):
-        lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=False))
-        ctx = _build_ctx(lot_config)
-        self.assertTrue(ctx.clustering.force_split_clusters)
-
-    def test_omitted_force_fleet_match_defaults_to_dynamic_split(self):
-        lot_config = LotConfig()
-        ctx = _build_ctx(lot_config)
-        self.assertFalse(ctx.clustering.force_vehicles_fleet_match)
-        self.assertTrue(ctx.clustering.force_split_clusters)
-
     def test_wire_payload_includes_lot_clustering_flag(self):
         lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=True))
         ctx = _build_ctx(lot_config)
         wire = plan_to_wire_payload(ctx)
         self.assertTrue(wire["clustering"]["force_vehicles_fleet_match"])
 
-    def test_dynamic_fleet_up_to_2k_keeps_base_cluster_sizes(self):
-        lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=False))
-        ctx = _build_ctx(lot_config, delivery_count=100)
-        base_min, base_max = compute_cluster_sizes(100, 2)
-        self.assertEqual(ctx.clustering.min_size_cluster, base_min)
-        self.assertEqual(ctx.clustering.max_size_cluster, base_max)
+    def test_wire_leaves_sizes_split_and_batch_to_the_optimizer(self):
+        # The optimizer computes them from stops and fleet (dynamic-fleet boost included).
+        for force in (True, False):
+            with self.subTest(force_vehicles_fleet_match=force):
+                lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=force))
+                wire = plan_to_wire_payload(_build_ctx(lot_config, delivery_count=8205, fleet_qty=57))
+                for key in ("min_size_cluster", "max_size_cluster", "force_split_clusters", "size_cluster_tolerance"):
+                    self.assertNotIn(key, wire["clustering"])
+                self.assertNotIn("preprocessing_batch_size", wire["settings"].get("preprocessing") or {})
+                self.assertNotIn("hardware", wire["settings"])
 
-    def test_dynamic_fleet_at_2k_keeps_base_cluster_sizes(self):
-        lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=False))
-        ctx = _build_ctx(lot_config, delivery_count=2000)
-        base_min, base_max = compute_cluster_sizes(2000, 2)
-        self.assertEqual(ctx.clustering.min_size_cluster, base_min)
-        self.assertEqual(ctx.clustering.max_size_cluster, base_max)
+    def test_string_false_fleet_match_is_coerced(self):
+        clustering = build_plan_clustering(engine_clustering={"force_vehicles_fleet_match": "false"})
+        self.assertFalse(clustering.force_vehicles_fleet_match)
 
-    def test_dynamic_fleet_between_2k_and_5k_boosts_by_115(self):
-        lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=False))
-        delivery_count = 3000
-        ctx = _build_ctx(lot_config, delivery_count=delivery_count)
-        base_min, base_max = compute_cluster_sizes(delivery_count, 2)
-        expected_min, expected_max = scale_cluster_sizes_for_dynamic_fleet(
-            base_min,
-            base_max,
-            delivery_count=delivery_count,
-        )
-        self.assertEqual(ctx.clustering.min_size_cluster, expected_min)
-        self.assertEqual(ctx.clustering.max_size_cluster, expected_max)
-        self.assertEqual(expected_min, math.ceil(base_min * 1.15))
-        self.assertEqual(expected_max, math.ceil(base_max * 1.15))
-
-    def test_force_fleet_match_keeps_base_auto_cluster_sizes(self):
-        lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=True))
-        ctx = _build_ctx(lot_config, delivery_count=8205)
-        base_min, base_max = compute_cluster_sizes(8205, 2)
-        self.assertEqual(ctx.clustering.min_size_cluster, base_min)
-        self.assertEqual(ctx.clustering.max_size_cluster, base_max)
-
-    def test_dbo1_scale_example_71_142_becomes_89_178_when_dynamic(self):
-        """8205 stops ÷ 58 vehicles → 71/142 base; +25% tier → 89/178."""
-        base_min, base_max = compute_cluster_sizes(8205, 58)
-        self.assertEqual(base_min, 71)
-        self.assertEqual(base_max, 142)
-        boosted = build_plan_clustering(
-            engine_clustering={
-                **engine_clustering_defaults(),
-                "force_vehicles_fleet_match": False,
-            },
-            a_sum=8205,
-            v_sum=58,
-        )
-        self.assertEqual(boosted.min_size_cluster, 89)
-        self.assertEqual(boosted.max_size_cluster, 178)
-
-    def test_dynamic_fleet_boosts_even_when_engine_presets_cluster_sizes(self):
-        """PLAN_CLUSTERING_JSON may pre-fill min/max — dynamic fleet must still boost."""
-        base_min, base_max = compute_cluster_sizes(8205, 57)
-        self.assertEqual(base_min, 72)
-        self.assertEqual(base_max, 144)
-        boosted = build_plan_clustering(
-            engine_clustering={
-                **engine_clustering_defaults(),
-                "min_size_cluster": base_min,
-                "max_size_cluster": base_max,
-                "force_vehicles_fleet_match": False,
-            },
-            a_sum=8205,
-            v_sum=57,
-        )
-        self.assertEqual(boosted.min_size_cluster, 90)
-        self.assertEqual(boosted.max_size_cluster, 180)
-
-    def test_string_false_applies_dynamic_fleet_boost(self):
-        boosted = build_plan_clustering(
-            engine_clustering={
-                **engine_clustering_defaults(),
-                "force_vehicles_fleet_match": "false",
-            },
-            a_sum=8205,
-            v_sum=58,
-        )
-        self.assertEqual(boosted.min_size_cluster, 89)
-        self.assertEqual(boosted.max_size_cluster, 178)
-        self.assertTrue(boosted.force_split_clusters)
-
-    def test_ui_run_57_vehicles_dynamic_fleet_wire_sizes(self):
-        lot_config = LotConfig(clustering=ClusteringConfig(force_vehicles_fleet_match=False))
-        ctx = _build_ctx(lot_config, delivery_count=8205, fleet_qty=57)
-        self.assertEqual(ctx.clustering.min_size_cluster, 90)
-        self.assertEqual(ctx.clustering.max_size_cluster, 180)
+    def test_plan_clustering_json_override_still_reaches_the_wire(self):
+        clustering = build_plan_clustering(engine_clustering={"size_cluster_tolerance": 0.2})
+        self.assertEqual(clustering.model_dump(exclude_none=True)["size_cluster_tolerance"], 0.2)
 
 
 if __name__ == "__main__":

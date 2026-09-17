@@ -1,31 +1,28 @@
 from pydantic import BaseModel
 
-from libs.plan_engine_defaults import _DEFAULT_SETTINGS as _S
-
-_P = _S["preprocessing"]
-_H = _S["hardware"]
-
 
 class Preprocessing(BaseModel):
-    enable_address_preprocessing: bool = _P["enable_address_preprocessing"]
+    enable_address_preprocessing: bool | None = None
     preprocessing_batch_size: int | None = None
-    max_distance_km: float | None = _P.get("max_distance_km")
+    max_distance_km: float | None = None
 
 
 class Hardware(BaseModel):
-    clustering_data_chunks: int | str = _H["clustering_data_chunks"]
-    clustering_parallel_process: int = _H["clustering_parallel_process"]
-    routing_batch_size: int = _H["routing_batch_size"]
-    routing_parallel_process: int = _H["routing_parallel_process"]
-    routing_strategy: str = _H["routing_strategy"]
+    clustering_data_chunks: int | str | None = None
+    clustering_parallel_process: int | None = None
+    routing_batch_size: int | None = None
+    routing_parallel_process: int | None = None
+    routing_strategy: str | None = None
 
 
 class PlanSettings(BaseModel):
     """Typed optimizer settings payload.
 
-    Tunable defaults come from ``config/engine_defaults.json`` (settings).
-    ``preprocessing_batch_size`` is computed per plan when omitted.
+    Left unset by default: the optimizer applies its own preprocessing defaults and
+    computes preprocessing_batch_size; chunks and parallelism come from its deploy env.
+    Fields stay declared so PLAN_SETTINGS_JSON and PLAN_PREPROCESSING_MAX_DISTANCE_KM
+    overrides still reach the wire.
     """
 
     preprocessing: Preprocessing = Preprocessing()
-    hardware: Hardware = Hardware()
+    hardware: Hardware | None = None

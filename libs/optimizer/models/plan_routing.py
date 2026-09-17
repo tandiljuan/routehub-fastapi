@@ -1,29 +1,29 @@
 from pydantic import BaseModel
 
-from libs.plan_engine_defaults import _DEFAULT_ROUTING as _R
-
 
 class PlanRouting(BaseModel):
     """Typed optimizer routing payload.
 
-    Engine knobs come from ``config/engine_defaults.json``. Overlay fields
-    (schedule / client ETA) are omitted from the wire unless the lot set them.
+    Engine tuning is left unset so the optimizer applies its own defaults
+    (route-optimizer-app src/helpers/engine_defaults.py); fields stay declared so
+    PLAN_ROUTING_JSON overrides still reach the wire. Overlay fields (schedule /
+    client ETA) are omitted from the wire unless the lot set them.
     """
 
-    api_type: str = _R["api_type"]
-    weight_routes: str = _R["weight_routes"]
-    rectify_final_routes: bool = _R["rectify_final_routes"]
-    nearby_threshold_m: float = _R["nearby_threshold_m"]
-    reorder_nearby_postprocessing: bool = _R["reorder_nearby_postprocessing"]
-    reorder_nearby_max_penalty: float = _R["reorder_nearby_max_penalty"]
-    distance_haversine_limit: int = _R["distance_haversine_limit"]
-    distance_factor: float = _R["distance_factor"]
-    use_graph_travel_time: bool = _R["use_graph_travel_time"]
-    two_opt_fast_mode: bool = _R["two_opt_fast_mode"]
-    two_opt_min_improvement_pct: float = _R["two_opt_min_improvement_pct"]
-    two_opt_base_max_iterations: int = _R["two_opt_base_max_iterations"]
-    two_opt_base_consecutive_limit: int = _R["two_opt_base_consecutive_limit"]
-    two_opt_base_total_limit: int = _R["two_opt_base_total_limit"]
+    api_type: str | None = None
+    weight_routes: str | None = None
+    rectify_final_routes: bool | None = None
+    nearby_threshold_m: float | None = None
+    reorder_nearby_postprocessing: bool | None = None
+    reorder_nearby_max_penalty: float | None = None
+    distance_haversine_limit: int | None = None
+    distance_factor: float | None = None
+    use_graph_travel_time: bool | None = None
+    two_opt_fast_mode: bool | None = None
+    two_opt_min_improvement_pct: float | None = None
+    two_opt_base_max_iterations: int | None = None
+    two_opt_base_consecutive_limit: int | None = None
+    two_opt_base_total_limit: int | None = None
     optimize_time_windows: bool | None = None
     start_time_minutes_route: int | None = None
     service_time_min: float | None = None

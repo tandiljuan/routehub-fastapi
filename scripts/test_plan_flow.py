@@ -1236,17 +1236,10 @@ def show_optimizer_payload(original: dict, lot_config: dict, show_n: int = 5) ->
         vehicles.append(PlanVehicle(**kwargs))
 
     engine = resolve_engine_config()
-    clustering = build_plan_clustering(
-        engine_clustering=engine["clustering"],
-        a_sum=len(original.get("addresses", [])),
-        v_sum=sum(v.get("quantity", 0) for v in original.get("vehicles", [])),
-    )
+    clustering = build_plan_clustering(engine_clustering=engine["clustering"])
     routing = build_plan_routing(lc, engine_routing=engine["routing"])
     rebalance = build_plan_rebalance(lc)
-    settings = build_plan_settings(
-        engine_settings=engine["settings"],
-        max_size_cluster=clustering.max_size_cluster,
-    )
+    settings = build_plan_settings(engine_settings=engine["settings"])
     src_addrs = original.get("addresses", [])[:show_n]
     addresses = [wire_address_from_source(a) for a in src_addrs]
     plan = PlanContext(

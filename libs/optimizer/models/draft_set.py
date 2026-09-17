@@ -11,9 +11,10 @@ _LOT_DRAFT_ROUTING_KEYS = (
 
 
 class DraftRouting(BaseModel):
-    api_type: str = "igraph"
-    rectify_final_routes: bool = True
-    two_opt_fast_mode: bool = True
+    # Engine tuning unset: /routes/optimize applies the optimizer's own defaults.
+    api_type: str | None = None
+    rectify_final_routes: bool | None = None
+    two_opt_fast_mode: bool | None = None
     use_graph_travel_time: bool | None = None
     avg_speed_kph: float | None = None
     service_time_min: float | None = None
