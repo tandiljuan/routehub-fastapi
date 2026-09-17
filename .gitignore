@@ -152,3 +152,14 @@ tags
 *.sqlite
 *.db
 docker-compose.env*
+
+# Optimizer address dumps / large fixtures (kept local, never committed)
+/addresses_aws*.json
+scripts/addresses_aws_*.json
+
+# Large wire-exploration script (not part of the API surface)
+scripts/explore_wire_request_matrix.py
+
+# Auto-generated IDE artifacts
+.deepseek/
+
