@@ -194,12 +194,14 @@ Scenarios **27** (catalog only), **28** (override beats catalog), **29** (catalo
 **Rebalance time** (separate chain):
 
 ```
-config.rebalance.rebalance_by_time.min/max_time_minutes_per_route
+lot.route_limits.time_* (+ time_unit)     → Duration card 0/60
+  > config.rebalance.rebalance_by_time.min/max_time_minutes_per_route
   > config.vehicles.defaults.route.time_min/max (+ time_unit)
-  > fleet run_profile.route.time_*
-  > lot.route_limits.time_* (+ time_unit)
+  > fleet run_profile.route.time_*         → e.g. 6 HOUR = 360 min
   > wire defaults (60 / 420 min)
 ```
+
+`0` is a valid min. Do not treat missing `time_unit` as hours.
 
 Canonical pattern examples: **A → J** in `explore_wire_request_matrix.py` (`PRECEDENCE_PATTERNS`).
 
@@ -225,7 +227,11 @@ Shape:
     "min_weight_capacity_ratio_vehicle": 0.42,
     "max_weight_capacity_ratio_vehicle": 0.88
   },
-  "rebalance_by_distance": { "enabled": true },
+  "rebalance_by_distance": {
+    "enabled": true,
+    "min_distance_km_per_route": 1,
+    "max_distance_km_per_route": 51
+  },
   "rebalance_by_time": {
     "enabled": true,
     "min_time_minutes_per_route": 90
@@ -243,8 +249,16 @@ Shape:
 So if you send a `rebalance` object, list every dimension you want **on**, or set
 `enabled: false` explicitly to document intent (**24**–**26**).
 
-Distance rebalance (**20**) only toggles the dimension; per-route km still come from
-**fleet** `run_profile.route` (or lot overrides / `route_limits`).
+Distance rebalance (**20**) toggles the dimension. Optional km:
+
+```
+lot.route_limits.length_* (+ length_unit)
+  > config.rebalance.rebalance_by_distance.min/max_distance_km_per_route
+  > config.vehicles.defaults.route.distance_min/max
+```
+
+If none are set, the optimizer wire **omits** `min/max_distance_km_per_route` (no 20/100 default).
+Per-vehicle `distance_limits` still come from fleet `run_profile.route`.
 
 ### Flag coverage matrix (scenarios)
 
@@ -624,8 +638,9 @@ POST /lots      → config.rebalance.rebalance_by_distance: { enabled: true }
 POST /lots/{id}/plan
 ```
 
-**Wire:** `rebalance.rebalance_by_distance = true`. Per-vehicle `distance_limits` still come from
-fleet `run_profile.route`, not from the rebalance branch.
+**Wire:** `rebalance.rebalance_by_distance = true`. Optional `min/max_distance_km_per_route`
+from lot `route_limits.length_*` or the distance branch. Per-vehicle `distance_limits`
+still come from fleet `run_profile.route` when the lot does not set length.
 
 ```bash
 docker compose exec api python scripts/test_plan_flow.py --scenario 20 --wire-only

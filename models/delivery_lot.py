@@ -205,9 +205,9 @@ class DeliveryLot(SQLModel, table=True):
             limits['length_max'] = self.route_length_max
         if self.route_length_unit:
             limits['length_unit'] = self.route_length_unit
-        if self.route_time_min:
+        if self.route_time_min is not None:
             limits['time_min'] = self.route_time_min
-        if self.route_time_max:
+        if self.route_time_max is not None:
             limits['time_max'] = self.route_time_max
         if self.route_time_unit:
             limits['time_unit'] = self.route_time_unit

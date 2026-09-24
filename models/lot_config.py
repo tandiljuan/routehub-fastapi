@@ -66,6 +66,8 @@ class RebalanceByTimeConfig(SQLModel):
 
 class RebalanceByDistanceConfig(SQLModel):
     enabled: bool = True
+    min_distance_km_per_route: float | None = None
+    max_distance_km_per_route: float | None = None
 
 class RebalanceConfig(SQLModel):
     rebalance_by_volume: RebalanceByVolumeConfig | None = None

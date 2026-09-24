@@ -148,9 +148,9 @@ def _lot_limits_payload(lot: DeliveryLot) -> tuple[dict | None, dict | None]:
         route_limits["length_max"] = lot.route_length_max
     if lot.route_length_unit:
         route_limits["length_unit"] = lot.route_length_unit
-    if lot.route_time_min:
+    if lot.route_time_min is not None:
         route_limits["time_min"] = lot.route_time_min
-    if lot.route_time_max:
+    if lot.route_time_max is not None:
         route_limits["time_max"] = lot.route_time_max
     if lot.route_time_unit:
         route_limits["time_unit"] = lot.route_time_unit

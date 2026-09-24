@@ -9,6 +9,14 @@ The adapter joins:
 Precedence per vehicle field: overrides > defaults > fleet.run_profile > route_limits
 > POST /plan fallback stops.
 
+Duration rebalance bounds: lot route_time_* (Duration card) > rebalance_by_time
+min/max > fleet vehicles.defaults.route > PlanRebalance 60/420. 0 is a valid min.
+A stale time-branch 360 (6h fleet) must not replace lot 0/60.
+
+Distance rebalance bounds: lot route_length_* (km) > rebalance_by_distance
+min/max_distance_km_per_route > fleet vehicles.defaults.route. Optional; omit
+when unset. Per-vehicle distance_limits still apply.
+
 Engine tuning, cluster sizes, force_split_clusters and preprocessing_batch_size are not
 sent: the optimizer computes them (route-optimizer-app src/helpers/engine_defaults.py).
 Rebalance falls back to PlanRebalance defaults when omitted.
@@ -174,9 +182,18 @@ def build_plan_settings(*, engine_settings: dict) -> PlanSettings:
     return PlanSettings.model_validate(dict(engine_settings or {}))
 
 
+def _first_bound(*values) -> float | None:
+    """First bound that was actually set. 0 is valid; only None is missing."""
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def build_plan_rebalance(lot_config: LotConfig, lot_db=None) -> PlanRebalance:
     fields = PlanRebalance().model_dump()
     src = lot_config.rebalance
+    time_branch = src.rebalance_by_time if src is not None else None
     if src is not None:
         overrides = {
             "rebalance_by_volume": _flag(src.rebalance_by_volume),
@@ -189,22 +206,45 @@ def build_plan_rebalance(lot_config: LotConfig, lot_db=None) -> PlanRebalance:
             if branch is not None:
                 branch_fields = branch.model_dump(exclude_none=True, exclude={"enabled"})
                 branch_fields.pop("max_volume_capacity_ratio_total", None)
+                # Minutes are applied below (lot > branch > fleet > 60/420).
+                # Dumping them here let a stale branch 360 beat Duration 0/60.
+                if branch is time_branch:
+                    branch_fields.pop("min_time_minutes_per_route", None)
+                    branch_fields.pop("max_time_minutes_per_route", None)
                 overrides.update(branch_fields)
         fields.update(overrides)
         fields["max_volume_capacity_ratio_total"] = PlanRebalance().max_volume_capacity_ratio_total
 
-    time_branch = src.rebalance_by_time if src is not None else None
-    branch_set_min = (
-        time_branch is not None and time_branch.min_time_minutes_per_route is not None
+    lot_min, lot_max = _lot_time_bounds(lot_db)
+    fleet_min, fleet_max = _fleet_time_bounds(lot_config)
+    branch_min = (
+        time_branch.min_time_minutes_per_route if time_branch is not None else None
     )
-    branch_set_max = (
-        time_branch is not None and time_branch.max_time_minutes_per_route is not None
+    branch_max = (
+        time_branch.max_time_minutes_per_route if time_branch is not None else None
     )
-    tmin, tmax = _resolve_time_bounds(lot_config, lot_db)
-    if not branch_set_min and tmin is not None:
+    tmin = _first_bound(lot_min, branch_min, fleet_min)
+    tmax = _first_bound(lot_max, branch_max, fleet_max)
+    if tmin is not None:
         fields["min_time_minutes_per_route"] = tmin
-    if not branch_set_max and tmax is not None:
+    if tmax is not None:
         fields["max_time_minutes_per_route"] = tmax
+
+    dist_branch = src.rebalance_by_distance if src is not None else None
+    lot_dmin, lot_dmax = _lot_distance_bounds_km(lot_db)
+    fleet_dmin, fleet_dmax = _fleet_distance_bounds_km(lot_config)
+    branch_dmin = (
+        dist_branch.min_distance_km_per_route if dist_branch is not None else None
+    )
+    branch_dmax = (
+        dist_branch.max_distance_km_per_route if dist_branch is not None else None
+    )
+    dmin = _first_bound(lot_dmin, branch_dmin, fleet_dmin)
+    dmax = _first_bound(lot_dmax, branch_dmax, fleet_dmax)
+    if dmin is not None:
+        fields["min_distance_km_per_route"] = dmin
+    if dmax is not None:
+        fields["max_distance_km_per_route"] = dmax
     return PlanRebalance(**fields)
 
 
@@ -564,23 +604,70 @@ def _distance_limits(route, lot_db):
     return DistanceLimits(min_km=dmin, max_km=dmax) if (dmin is not None or dmax is not None) else None
 
 
-def _resolve_time_bounds(lot_config: LotConfig, lot_db) -> tuple[float | None, float | None]:
+def _lot_time_bounds(lot_db) -> tuple[float | None, float | None]:
+    """Duration / POST /lots `route_limits.time_*`. 0 is a valid min."""
+    tmin = None
+    tmax = None
+    if lot_db is not None:
+        if getattr(lot_db, "route_time_min", None) is not None:
+            tmin = _to_minutes(lot_db.route_time_min, getattr(lot_db, "route_time_unit", None))
+        if getattr(lot_db, "route_time_max", None) is not None:
+            tmax = _to_minutes(lot_db.route_time_max, getattr(lot_db, "route_time_unit", None))
+    return tmin, tmax
+
+
+def _fleet_time_bounds(lot_config: LotConfig) -> tuple[float | None, float | None]:
+    """vehicles.defaults.route — catalog / 6h fleet profile. Not a user Duration cap."""
+    tmin = None
+    tmax = None
     route = None
     if lot_config.vehicles and lot_config.vehicles.defaults:
         route = lot_config.vehicles.defaults.route
-    if route and route.time_min is not None:
+    if route is not None and route.time_min is not None:
         tmin = _to_minutes(route.time_min, route.time_unit or TimeUnit.MINUTE)
-    elif lot_db is not None and getattr(lot_db, "route_time_min", None) is not None:
-        tmin = _to_minutes(lot_db.route_time_min, getattr(lot_db, "route_time_unit", None))
-    else:
-        tmin = None
-    if route and route.time_max is not None:
+    if route is not None and route.time_max is not None:
         tmax = _to_minutes(route.time_max, route.time_unit or TimeUnit.MINUTE)
-    elif lot_db is not None and getattr(lot_db, "route_time_max", None) is not None:
-        tmax = _to_minutes(lot_db.route_time_max, getattr(lot_db, "route_time_unit", None))
-    else:
-        tmax = None
     return tmin, tmax
+
+
+def _resolve_time_bounds(lot_config: LotConfig, lot_db) -> tuple[float | None, float | None]:
+    """Lot-level route_limits beat fleet catalog time_min/max.
+
+    Duration card override → DeliveryLot.route_time_*. Fleet run_profile is
+    only the fallback when the lot did not set a bound. 0 is a valid min.
+    """
+    tmin, tmax = _lot_time_bounds(lot_db)
+    if tmin is not None and tmax is not None:
+        return tmin, tmax
+    fleet_min, fleet_max = _fleet_time_bounds(lot_config)
+    return _first_bound(tmin, fleet_min), _first_bound(tmax, fleet_max)
+
+
+def _lot_distance_bounds_km(lot_db) -> tuple[float | None, float | None]:
+    """POST /lots `route_limits.length_*` converted to km. Optional."""
+    dmin = None
+    dmax = None
+    if lot_db is not None:
+        unit = getattr(lot_db, "route_length_unit", None)
+        if getattr(lot_db, "route_length_min", None) is not None:
+            dmin = _to_km(lot_db.route_length_min, unit)
+        if getattr(lot_db, "route_length_max", None) is not None:
+            dmax = _to_km(lot_db.route_length_max, unit)
+    return dmin, dmax
+
+
+def _fleet_distance_bounds_km(lot_config: LotConfig) -> tuple[float | None, float | None]:
+    """vehicles.defaults.route distance — catalog km, not a required cap."""
+    dmin = None
+    dmax = None
+    route = None
+    if lot_config.vehicles and lot_config.vehicles.defaults:
+        route = lot_config.vehicles.defaults.route
+    if route is not None and route.distance_min is not None:
+        dmin = _to_km(route.distance_min, route.distance_unit or LengthUnit.KILOMETER)
+    if route is not None and route.distance_max is not None:
+        dmax = _to_km(route.distance_max, route.distance_unit or LengthUnit.KILOMETER)
+    return dmin, dmax
 
 
 def _max_volume(capacity, vehicle):
