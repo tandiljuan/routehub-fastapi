@@ -23,3 +23,9 @@ class ResultWaypoint(BaseModel):
     has_time_window: bool | None = None
     time_window: OptimizerTimeWindow | None = None
     subroute_number: int | None = None
+    # Donde frena el vehiculo: [lat, lng] sobre la calle con auto mas cercana, y los metros
+    # a pie desde ahi hasta la parada (motor, ROUTE_ACCESS_POINTS). Solo vienen cuando el
+    # motor los calculo. Sin declararlos aca Pydantic los descartaba en silencio y no
+    # llegaban ni al plan ni a la app del chofer.
+    access_point: list[float] | None = None
+    walk_m: float | None = None

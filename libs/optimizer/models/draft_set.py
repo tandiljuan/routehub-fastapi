@@ -7,6 +7,7 @@ _LOT_DRAFT_ROUTING_KEYS = (
     "use_graph_travel_time",
     "avg_speed_kph",
     "service_time_min",
+    "uturn_policy",
 )
 
 
@@ -18,6 +19,7 @@ class DraftRouting(BaseModel):
     use_graph_travel_time: bool | None = None
     avg_speed_kph: float | None = None
     service_time_min: float | None = None
+    uturn_policy: str | None = None
 
 
 def draft_routing_from_lot(lot_config: Any | None) -> DraftRouting:

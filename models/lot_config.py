@@ -1,9 +1,9 @@
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import JSON
 from sqlalchemy.types import TypeDecorator
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 from sqlmodel import SQLModel
 
 from .enum import LengthUnit, TimeUnit, VolumeUnit, WeightUnit
@@ -96,6 +96,13 @@ class RoutingConfig(SQLModel):
     service_time_min: float | None = None
     avg_speed_kph: float | None = None
     use_graph_travel_time: bool | None = None
+    # "allow" | "no_uturn"; anything else is dropped so the engine default applies.
+    uturn_policy: Literal["allow", "no_uturn"] | None = None
+
+    @field_validator("uturn_policy", mode="before")
+    @classmethod
+    def _known_uturn_policy(cls, value: Any) -> Any:
+        return value if value in ("allow", "no_uturn") else None
 
 class LotConfig(SQLModel):
     model_config = ConfigDict(extra="ignore")

@@ -5,3 +5,6 @@ class DraftRoute(BaseModel):
     route_id: str
     driver: str | None = None
     waypoints: list[DraftWaypoint]
+    # The route's vehicle: its network ("bicycle") and whether it may turn around. None = plan/engine default.
+    profile: str | None = None
+    allow_uturns: bool | None = None

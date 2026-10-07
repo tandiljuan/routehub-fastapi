@@ -24,6 +24,8 @@ class VehicleBase(SQLModel):
     consumption_unit: VehicleConsumptionUnit | None = Field(default=None, sa_column=Column(Enum(VehicleConsumptionUnit)))
     category_type: VehicleCategoryType | None = Field(default=None, sa_column=Column(Enum(VehicleCategoryType)))
     engine_type: VehicleEngineType | None = Field(default=None, sa_column=Column(Enum(VehicleEngineType)))
+    # May this type turn around (U-turn)? None = inherit the plan's rule.
+    allow_uturns: bool | None = Field(default=None)
 
 class VehicleCreate(VehicleBase):
     pass

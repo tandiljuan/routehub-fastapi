@@ -27,3 +27,7 @@ class PlanVehicle(BaseModel):
     consumption: VehicleConsumption | None = None
     priority_vehicle: int
     overflow_vehicle: bool | None = None
+    # "bicycle" routes this type on the bike network with bike speeds; None = a car (the engine default).
+    profile: str | None = None
+    # Whether this type may turn around; overrides the plan's routing.uturn_policy. None = inherit the plan.
+    allow_uturns: bool | None = None

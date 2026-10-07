@@ -162,7 +162,16 @@ def build_plan_vehicle(
             if behavior and behavior.overflow_vehicle is not None
             else False
         ),
+        profile=vehicle_profile(vehicle),
+        allow_uturns=getattr(vehicle, "allow_uturns", None),
     )
+
+
+def vehicle_profile(vehicle) -> str | None:
+    """The engine profile of a catalog vehicle: "bicycle" for bikes, None (a car) otherwise."""
+    category = getattr(vehicle, "category_type", None)
+    value = getattr(category, "value", category)
+    return "bicycle" if value == "BICYCLE" else None
 
 
 class LotPlanConfigError(ValueError):

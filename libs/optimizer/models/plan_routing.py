@@ -19,6 +19,9 @@ class PlanRouting(BaseModel):
     distance_haversine_limit: int | None = None
     distance_factor: float | None = None
     use_graph_travel_time: bool | None = None
+    # U-turns for the whole plan: "allow" | "no_uturn". A vehicle type (PlanVehicle.allow_uturns) or a
+    # route overrides it in the optimizer; None is not sent and the engine default (ROUTE_UTURN_POLICY) applies.
+    uturn_policy: str | None = None
     two_opt_fast_mode: bool | None = None
     two_opt_min_improvement_pct: float | None = None
     two_opt_base_max_iterations: int | None = None

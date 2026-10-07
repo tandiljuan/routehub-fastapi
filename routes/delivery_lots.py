@@ -47,6 +47,7 @@ from models.lot_config import LotConfig, merge_lot_config
 from libs.lot_plan_adapter import (
     LotPlanConfigError,
     build_wire_type_to_vehicle_id_map,
+    vehicle_profile,
 )
 from libs.plan_build import build_plan_context_for_lot, compute_fallback_stops, graph_tag_for_lot
 from models.delivery_plan import (
@@ -560,6 +561,8 @@ def delivery_lots_id_plan_patch(
             routes.append(DraftRoute(
                 route_id=str(pth_db.id),
                 waypoints=waypoints,
+                profile=vehicle_profile(pth_db.vehicle) if pth_db.vehicle else None,
+                allow_uturns=pth_db.vehicle.allow_uturns if pth_db.vehicle else None,
             ))
 
         else:

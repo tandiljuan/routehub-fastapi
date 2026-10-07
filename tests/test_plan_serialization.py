@@ -101,6 +101,33 @@ class TestRouteDataFromOptimizer(unittest.TestCase):
         self.assertEqual(data["stops"], data["optimized_waypoints"])
 
 
+class TestAccessPoints(unittest.TestCase):
+    """The engine's street access point and walk reach the plan, and only when present."""
+
+    def test_access_point_and_walk_survive_parsing_and_serialization(self):
+        result = ResultSet.model_validate({
+            "totals": {"total_routes": 1, "total_points": 2},
+            "routes": [{
+                "route_geometry": [[-34.6, -58.5]],
+                "optimized_waypoints": [
+                    {"order": 1, "lat": -34.6, "lng": -58.5,
+                     "access_point": [-34.60012, -58.50021], "walk_m": 17.4,
+                     "packages": [{"package_id": "pkg-1"}]},
+                    {"order": 2, "lat": -34.61, "lng": -58.51,
+                     "packages": [{"package_id": "pkg-2"}]},
+                ],
+            }],
+        })
+        data = _route_data_from_optimizer(
+            result.routes[0], 0, package_to_delivery={"pkg-1": 1, "pkg-2": 2},
+        )
+        first, second = data["optimized_waypoints"]
+        self.assertEqual(first["access_point"], [-34.60012, -58.50021])
+        self.assertEqual(first["walk_m"], 17.4)
+        self.assertNotIn("access_point", second)
+        self.assertNotIn("walk_m", second)
+
+
 class TestMergedWaypointMultiDelivery(unittest.TestCase):
     """A single waypoint can bundle packages from several deliveries."""
 
