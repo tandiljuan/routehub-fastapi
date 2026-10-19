@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -23,6 +24,30 @@ def address_extra_from_source(addr: dict) -> dict:
         extra["packages"] = addr["packages"]
     return extra
 
+def _positive(raw: Any) -> float | None:
+    try:
+        n = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return n if math.isfinite(n) and n > 0 else None
+
+
+def _with_declared_volume_dims(item: dict) -> dict:
+    """A package with ``volume_cm3`` but no complete L/W/H gets the equivalent cube.
+
+    The optimizer computes volume only from ``dimensions`` and PlanPackage has no volume
+    field, so a declared volume would otherwise vanish and volume limits never apply.
+    """
+    dims = item.get("dimensions")
+    if isinstance(dims, dict) and all(_positive(dims.get(k)) for k in ("length", "width", "height")):
+        return item
+    volume = _positive(item.get("volume_cm3"))
+    if volume is None:
+        return item
+    side = round(volume ** (1.0 / 3.0), 2)
+    return {**item, "dimensions": {"length": side, "width": side, "height": side}}
+
+
 def plan_packages_from_extra(extra: Any, *, fallback_package_id: str) -> list[PlanPackage]:
     if isinstance(extra, dict):
         raw = extra.get("packages")
@@ -31,7 +56,7 @@ def plan_packages_from_extra(extra: Any, *, fallback_package_id: str) -> list[Pl
             for item in raw:
                 if not isinstance(item, dict) or not item.get("package_id"):
                     continue
-                out.append(PlanPackage.model_validate(item))
+                out.append(PlanPackage.model_validate(_with_declared_volume_dims(item)))
             if out:
                 return out
     return [PlanPackage(package_id=fallback_package_id)]
