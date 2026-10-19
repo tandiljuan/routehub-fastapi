@@ -112,7 +112,10 @@ class Optimizer():
         rbody = {"status": "processing"}
         if 200 == r.status_code:
             rbody = json.loads(r.text)
-            rbody['status'] = "completed"
+            # A session the engine could not route answers 200 with status=failed,
+            # message and error_code — it must not be read as an empty completed plan.
+            failed = "failed" == str(rbody.get('status') or "").lower()
+            rbody['status'] = "failed" if failed else "completed"
         result_set = ResultSet.model_validate(rbody)
         return result_set
 

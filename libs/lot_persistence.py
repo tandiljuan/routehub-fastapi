@@ -9,7 +9,7 @@ from libs.package_wire import resolve_delivery_id
 from models.enum import DeliveryLotState
 from models.delivery import Delivery
 from models.delivery_lot import DeliveryLot, DeliveryLotDelivery, DeliveryLotDriver
-from models.delivery_plan import DeliveryPath, DeliveryPathDelivery, DeliveryPlan
+from models.delivery_plan import PLAN_ERROR_KEY, DeliveryPath, DeliveryPathDelivery, DeliveryPlan
 from models.driver import Driver
 from models.fleet import Fleet, FleetVehicle
 
@@ -204,6 +204,30 @@ def serialize_plan_poll(state: DeliveryLotState, optimizer_session_id: str | Non
         out["session_id"] = optimizer_session_id
         out["optimizer_session_id"] = optimizer_session_id
     return out
+
+
+DEFAULT_PLAN_ERROR_CODE = "plan_failed"
+DEFAULT_PLAN_ERROR_MESSAGE = "Route optimization failed"
+
+
+def plan_error_from_result(result) -> dict:
+    """`{"code", "message"}` for a session the engine reported as failed."""
+    code = getattr(result, "error_code", None) or DEFAULT_PLAN_ERROR_CODE
+    message = getattr(result, "message", None) or DEFAULT_PLAN_ERROR_MESSAGE
+    return {"code": str(code), "message": str(message)}
+
+
+def persist_plan_failure(db: Session, plan_db: DeliveryPlan, error: dict) -> None:
+    """Keep the failure reason on the plan so every later read returns it."""
+    data = dict(plan_db.totals_data or {})
+    data[PLAN_ERROR_KEY] = error
+    # New dict, not in-place: the JSON column only notices reassignment.
+    plan_db.totals_data = data
+    db.add(plan_db)
+
+
+def stored_plan_error(plan_db: DeliveryPlan) -> dict | None:
+    return (plan_db.totals_data or {}).get(PLAN_ERROR_KEY)
 
 
 def _lot_eager_options():

@@ -38,6 +38,11 @@ class DeliveryRouteUpdate(SQLModel):
     id: str
     deliveries: list[str]
 
+# Key inside `delivery_plan.totals_data` that holds why the engine could not route the plan
+# ({"code", "message"}). A failed plan has no totals, so the JSON column carries the reason
+# without a schema change; the serializer lifts it out as the top-level `error`.
+PLAN_ERROR_KEY = "plan_error"
+
 class DeliveryPlan(SQLModel, table=True):
     __tablename__ = "delivery_plan"
 
@@ -100,8 +105,14 @@ class DeliveryPlan(SQLModel, table=True):
             serialized['routes'] = routes
             if delivery_paths:
                 serialized['delivery_paths'] = delivery_paths
-        if self.totals_data:
-            serialized['totals'] = self.totals_data
+        totals = dict(self.totals_data or {})
+        plan_error = totals.pop(PLAN_ERROR_KEY, None)
+        if totals:
+            serialized['totals'] = totals
+        if plan_error:
+            serialized['error'] = plan_error
+            # Same keys as the PROCESSING poll ({"state", "routes": null, ...}) plus `error`.
+            serialized.setdefault('routes', None)
         for key in ('id', 'delivery_lot_id', 'optimizer_id', 'totals_data'):
             serialized.pop(key, None)
         return serialized

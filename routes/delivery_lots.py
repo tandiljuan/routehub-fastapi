@@ -28,11 +28,14 @@ from libs.lot_persistence import (
     load_delivery_lot_for_plan,
     load_delivery_lots_list,
     load_delivery_plan_detail,
+    persist_plan_failure,
     persist_processing_plan_routes,
+    plan_error_from_result,
     replace_lot_deliveries,
     replace_lot_drivers,
     serialize_lot_created,
     serialize_plan_poll,
+    stored_plan_error,
 )
 from models.database import Session as DbSession
 from models.enum import DeliveryLotState
@@ -113,7 +116,11 @@ def _plan_json(payload: dict, optimizer_session_id: str | None = None) -> JSONRe
     return JSONResponse(content=payload, headers=headers)
 
 
-def _dump_plan_or_500(plan_db: DeliveryPlan, optimizer_session_id: str | None = None) -> JSONResponse:
+def _dump_plan_or_500(
+    plan_db: DeliveryPlan,
+    optimizer_session_id: str | None = None,
+    error: dict | None = None,
+) -> JSONResponse:
     try:
         payload = plan_db.model_dump()
     except Exception as exc:
@@ -121,6 +128,8 @@ def _dump_plan_or_500(plan_db: DeliveryPlan, optimizer_session_id: str | None = 
             status_code=500,
             detail=f"Plan serialization failed: {exc}",
         ) from exc
+    if error:
+        payload["error"] = error
     return _plan_json(payload, optimizer_session_id or plan_db.optimizer_id)
 
 @router.get(
@@ -383,6 +392,26 @@ def delivery_lots_id_plan_get(
         except OptimizerError as exc:
             _raise_optimizer_http_error(exc)
 
+        if "failed" == plan_result.status:
+            # The engine could not route this plan (area too large, no country
+            # route...). Stop showing it as processing: CANCELED + the reason, kept
+            # on the plan so every later read returns the same `error`.
+            error = plan_error_from_result(plan_result)
+            persist_plan_failure(db, plan_db, error)
+            lot_db.state = DeliveryLotState.CANCELED
+            db.add(lot_db)
+            db.commit()
+            logger.warning(
+                "lot.plan.failed company=%s lot=%s optimizer_id=%s code=%s message=%s",
+                company_id,
+                id,
+                plan_db.optimizer_id,
+                error["code"],
+                error["message"],
+            )
+            plan_db = load_delivery_plan_detail(db, plan_db.id)
+            return _dump_plan_or_500(plan_db)
+
         if "completed" != plan_result.status:
             return _plan_json(
                 serialize_plan_poll(lot_db.state, plan_db.optimizer_id),
@@ -416,16 +445,30 @@ def delivery_lots_id_plan_get(
         )
 
     elif DeliveryLotState.OPTIMIZING == lot_db.state:
-        draft_result = optimizer.get_draft_result(task_id=plan_db.optimizer_id)
+        try:
+            draft_result = optimizer.get_draft_result(task_id=plan_db.optimizer_id)
+        except OptimizerError as exc:
+            _raise_optimizer_http_error(exc)
 
         if "failed" == draft_result.status:
             # Re-optimize worker failed — restore the previous PROCESSED plan so the
             # lot doesn't stay stuck in OPTIMIZING (the client re-sends its moves).
+            # The old routes stay valid, so the reason is only reported on this read
+            # (not stored as a lot failure): callers see the reoptimize failed and why.
+            error = plan_error_from_result(draft_result)
             lot_db.state = DeliveryLotState.PROCESSED
             db.add(lot_db)
             db.commit()
+            logger.warning(
+                "lot.plan.reoptimize_failed company=%s lot=%s optimizer_id=%s code=%s message=%s",
+                company_id,
+                id,
+                plan_db.optimizer_id,
+                error["code"],
+                error["message"],
+            )
             plan_db = load_delivery_plan_detail(db, plan_db.id)
-            return _dump_plan_or_500(plan_db)
+            return _dump_plan_or_500(plan_db, error=error)
 
         if "completed" != draft_result.status:
             return _plan_json(
@@ -482,13 +525,25 @@ def delivery_lots_id_plan_status_get(
     if not lot_db.plans or DeliveryLotState.UNPROCESSED == lot_db.state:
         raise HTTPException(status_code=404, detail="No routing plan has been created")
 
+    plan_db = lot_db.plans[-1]
+
+    stored_error = stored_plan_error(plan_db)
+    if DeliveryLotState.CANCELED == lot_db.state and stored_error:
+        # GET /plan already recorded the engine failure: answer as the engine's 410
+        # does, so a status poller still gets the code after the lot left PROCESSING.
+        headers = {"X-Optimizer-Session-Id": plan_db.optimizer_id} if plan_db.optimizer_id else None
+        return JSONResponse(
+            content={"detail": stored_error.get("message"), "error_code": stored_error.get("code")},
+            status_code=410,
+            headers=headers,
+        )
+
     if DeliveryLotState.PROCESSING != lot_db.state:
         raise HTTPException(
             status_code=409,
             detail="Optimizer status is only available while the plan is processing",
         )
 
-    plan_db = lot_db.plans[-1]
     if not plan_db.optimizer_id:
         raise HTTPException(status_code=404, detail="No optimizer session for this plan")
 

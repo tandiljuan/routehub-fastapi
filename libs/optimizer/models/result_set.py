@@ -11,3 +11,7 @@ class ResultSet(BaseModel):
     rejected_deliveries: list[dict] | None = None
     submitted_points: int | None = None
     unserved_points: int | None = None
+    # Set by the engine on a session it could not route (status="failed"): the human
+    # reason and a machine code ("area_too_large", "country_route_unavailable", or None).
+    message: str | None = None
+    error_code: str | None = None
