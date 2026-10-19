@@ -37,6 +37,8 @@ def _coerce_delivery_id(raw: object) -> int | None:
 class DeliveryRouteUpdate(SQLModel):
     id: str
     deliveries: list[str]
+    # "Start at this stop": one of `deliveries`; the route goes there first and the engine orders the rest.
+    first_stop: str | None = None
 
 # Key inside `delivery_plan.totals_data` that holds why the engine could not route the plan
 # ({"code", "message"}). A failed plan has no totals, so the JSON column carries the reason

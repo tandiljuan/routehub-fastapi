@@ -588,6 +588,12 @@ def delivery_lots_id_plan_patch(
             raise HTTPException(status_code=404, detail=f"Route not found (id: '{route.id}')")
 
         waypoints = []
+        if route.first_stop is not None and route.first_stop not in route.deliveries:
+            raise HTTPException(
+                status_code=422,
+                detail=f"first_stop '{route.first_stop}' is not one of route '{route.id}' deliveries",
+            )
+        first_stop = None
 
         # Iterate list of points
         for dlv_id in route.deliveries:
@@ -610,6 +616,9 @@ def delivery_lots_id_plan_patch(
                     DraftPackage(package_id=p.package_id) for p in addr.packages
                 ],
             ))
+            if dlv_id == route.first_stop:
+                # Same coordinates as the waypoint: the engine matches the pinned stop exactly.
+                first_stop = {"lat": addr.lat, "lng": addr.lng}
 
         # Append non empty list of waypoints
         if len(waypoints):
@@ -618,6 +627,7 @@ def delivery_lots_id_plan_patch(
                 waypoints=waypoints,
                 profile=vehicle_profile(pth_db.vehicle) if pth_db.vehicle else None,
                 allow_uturns=pth_db.vehicle.allow_uturns if pth_db.vehicle else None,
+                first_stop=first_stop,
             ))
 
         else:
