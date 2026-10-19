@@ -102,3 +102,30 @@ def test_fleet_defaults_fill_when_lot_has_no_time_bounds():
     rebalance = build_plan_rebalance(lot_config, _lot_db())
     assert rebalance.min_time_minutes_per_route == 60
     assert rebalance.max_time_minutes_per_route == 90
+
+
+def _link(vid, name, qty, time_max=None):
+    from types import SimpleNamespace as NS
+    profile = {"route": {"time_max": time_max, "time_unit": "MINUTE"}} if time_max is not None else None
+    return NS(vehicle=NS(id=vid, name=name), quantity=qty, alias=None, run_profile=profile)
+
+
+def test_per_vehicle_time_max_reaches_engine_as_strictest():
+    """Camioneta 360 / bicicleta 300 per vehicle and no Duration card: the engine gets 300, not 60/480."""
+    from libs.lot_plan_adapter import vehicle_time_bounds
+    from models.lot_config import VehicleOverride
+    links = [_link(1, "Camioneta", 15, 360), _link(2, "bicicleta", 8)]
+    lot_config = LotConfig(vehicles=VehiclesConfig(overrides=[
+        VehicleOverride(vehicle_id="bicicleta", route=VehicleRouteConfig(time_max=300, time_unit=TimeUnit.MINUTE))]))
+    bounds = vehicle_time_bounds(links, lot_config)
+    assert bounds == (None, 300)
+    rebalance = build_plan_rebalance(lot_config, _lot_db(), bounds)
+    assert rebalance.max_time_minutes_per_route == 300
+
+
+def test_duration_card_still_beats_per_vehicle_time():
+    from libs.lot_plan_adapter import vehicle_time_bounds
+    links = [_link(1, "Camioneta", 15, 360)]
+    lot_config = LotConfig()
+    rebalance = build_plan_rebalance(lot_config, _lot_db(route_time_max=420), vehicle_time_bounds(links, lot_config))
+    assert rebalance.max_time_minutes_per_route == 420

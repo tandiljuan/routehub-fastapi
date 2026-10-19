@@ -199,7 +199,47 @@ def _first_bound(*values) -> float | None:
     return None
 
 
-def build_plan_rebalance(lot_config: LotConfig, lot_db=None) -> PlanRebalance:
+def vehicle_time_bounds(fleet_links, lot_config: LotConfig) -> tuple[float | None, float | None]:
+    """Time limits set per vehicle (the run's per-vehicle override, else that fleet's own profile).
+
+    The engine takes ONE time window for every route (rebalance.min/max_time_minutes_per_route),
+    so a mixed fleet sends the strictest one: the lowest max (no vehicle goes over its own cap)
+    and the lowest min (no vehicle is forced to work longer than its own floor).
+    """
+    mins: list[float] = []
+    maxs: list[float] = []
+
+    def collect(route):
+        if route is None:
+            return
+        unit = route.time_unit or TimeUnit.MINUTE
+        if route.time_min is not None:
+            mins.append(_to_minutes(route.time_min, unit))
+        if route.time_max is not None:
+            maxs.append(_to_minutes(route.time_max, unit))
+
+    for link in fleet_links or []:
+        if not getattr(link, "quantity", 0):
+            continue
+        catalog_id = str(link.vehicle.id)
+        cfg = _resolve_vehicle_config(
+            lot_config,
+            catalog_id,
+            wire_type=_link_wire_type(link),
+            catalog_name=getattr(link.vehicle, "name", None) or catalog_id,
+            fleet_cfg=_fleet_vehicle_config(link),
+        )
+        collect(cfg.route)
+    # vehicle types added only for this run (not in the saved fleet)
+    for ov in (lot_config.vehicles.overrides if lot_config.vehicles else None) or []:
+        if not _override_belongs_to_fleet(ov, fleet_links or []):
+            collect(ov.route)
+    return (min(mins) if mins else None), (min(maxs) if maxs else None)
+
+
+def build_plan_rebalance(lot_config: LotConfig, lot_db=None, vehicle_time=None) -> PlanRebalance:
+    """``vehicle_time``: (min, max) from vehicle_time_bounds. Order: Duration card (lot) > time branch >
+    per-vehicle limits > fleet defaults."""
     fields = PlanRebalance().model_dump()
     src = lot_config.rebalance
     time_branch = src.rebalance_by_time if src is not None else None
@@ -232,8 +272,9 @@ def build_plan_rebalance(lot_config: LotConfig, lot_db=None) -> PlanRebalance:
     branch_max = (
         time_branch.max_time_minutes_per_route if time_branch is not None else None
     )
-    tmin = _first_bound(lot_min, branch_min, fleet_min)
-    tmax = _first_bound(lot_max, branch_max, fleet_max)
+    veh_min, veh_max = vehicle_time or (None, None)
+    tmin = _first_bound(lot_min, branch_min, veh_min, fleet_min)
+    tmax = _first_bound(lot_max, branch_max, veh_max, fleet_max)
     if tmin is not None:
         fields["min_time_minutes_per_route"] = tmin
     if tmax is not None:

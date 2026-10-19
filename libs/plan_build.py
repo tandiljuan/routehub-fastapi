@@ -8,6 +8,7 @@ from typing import Any
 from libs.lot_plan_adapter import (
     build_plan_clustering,
     build_plan_rebalance,
+    vehicle_time_bounds,
     build_plan_routing,
     build_plan_settings,
     build_plan_vehicles,
@@ -128,7 +129,7 @@ def build_plan_context_for_lot(
     clustering = build_plan_clustering(engine_clustering=clustering_dict)
     routing = build_plan_routing(lot_config, engine_routing=engine["routing"])
     settings = build_plan_settings(engine_settings=engine["settings"])
-    rebalance = build_plan_rebalance(lot_config, lot_db)
+    rebalance = build_plan_rebalance(lot_config, lot_db, vehicle_time_bounds(fleet_links, lot_config))
 
     origin_lat, origin_lng = parse_lat_lng_from_destination(lot_db.milestone.location)
 
