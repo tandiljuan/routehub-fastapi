@@ -19,6 +19,11 @@ CLIENT_ROUTING_KEYS = frozenset({
     "avg_speed_kph",
     "use_graph_travel_time",
     "uturn_policy",
+    # "depot" | "last_stop" (open route) and each city in one pass; the optimizer ignores both unless its
+    # ROUTE_END_OPTIONS / ROUTE_ZONE_ONCE switches are on
+    "route_end",
+    "route_end_point",
+    "visit_zones_once",
 })
 
 # Lot/schedule overlays — never stored in engine_defaults.json.

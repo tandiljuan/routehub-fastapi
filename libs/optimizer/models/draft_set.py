@@ -8,6 +8,9 @@ _LOT_DRAFT_ROUTING_KEYS = (
     "avg_speed_kph",
     "service_time_min",
     "uturn_policy",
+    "route_end",
+    "route_end_point",
+    "visit_zones_once",
 )
 
 
@@ -20,6 +23,9 @@ class DraftRouting(BaseModel):
     avg_speed_kph: float | None = None
     service_time_min: float | None = None
     uturn_policy: str | None = None
+    route_end: str | None = None
+    route_end_point: dict[str, float] | None = None
+    visit_zones_once: bool | None = None
 
 
 def draft_routing_from_lot(lot_config: Any | None) -> DraftRouting:

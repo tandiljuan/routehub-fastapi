@@ -99,10 +99,32 @@ class RoutingConfig(SQLModel):
     # "allow" | "no_uturn"; anything else is dropped so the engine default applies.
     uturn_policy: Literal["allow", "no_uturn"] | None = None
 
+    # Where the route ends: "depot" (round trip, the default) | "last_stop" (open route, no way back) | "point"
+    # (ends at route_end_point, e.g. another depot); anything else is dropped so the engine default (round trip) applies.
+    route_end: Literal["depot", "last_stop", "point"] | None = None
+    route_end_point: dict[str, float] | None = None
+    # Long routes across cities: each city's stops in one pass (the engine only uses it on country routes).
+    visit_zones_once: bool | None = None
+
     @field_validator("uturn_policy", mode="before")
     @classmethod
     def _known_uturn_policy(cls, value: Any) -> Any:
         return value if value in ("allow", "no_uturn") else None
+
+    @field_validator("route_end", mode="before")
+    @classmethod
+    def _known_route_end(cls, value: Any) -> Any:
+        return value if value in ("depot", "last_stop", "point") else None
+
+    @field_validator("route_end_point", mode="before")
+    @classmethod
+    def _valid_end_point(cls, value: Any) -> Any:
+        """{"lat", "lng"} inside the world; anything else is dropped (a "point" end without it comes back to the depot)."""
+        try:
+            lat, lng = float(value["lat"]), float(value["lng"])
+        except (TypeError, KeyError, ValueError):
+            return None
+        return {"lat": lat, "lng": lng} if abs(lat) <= 90 and abs(lng) <= 180 else None
 
 class LotConfig(SQLModel):
     model_config = ConfigDict(extra="ignore")
