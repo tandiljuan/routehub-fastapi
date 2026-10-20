@@ -360,6 +360,25 @@ def delivery_lots_id_plan_post(
         "message": "Delivery plan queued for processing",
     }
 
+def _claim_lot_state(db, lot_id: int, expected: DeliveryLotState) -> bool:
+    """
+    Lock the lot row (SELECT ... FOR UPDATE) and confirm it is still ``expected``.
+
+    Two polls of the same lot (two tabs, web + API) used to both see PROCESSING, both
+    fetch the finished result and both write its routes: clear + insert in two open
+    transactions left every route twice (lot 201: 46 paths for 23 routes, the web froze).
+    The lock makes the second poll wait for the first commit; it then sees PROCESSED and
+    just reads. The optimizer call stays outside the lock.
+    """
+    locked = db.exec(
+        select(DeliveryLot)
+        .where(DeliveryLot.id == lot_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).first()
+    return locked is not None and locked.state == expected
+
+
 @router.get(
     "/{id}/plan",
     summary="Get plan",
@@ -418,6 +437,11 @@ def delivery_lots_id_plan_get(
                 plan_db.optimizer_id,
             )
 
+        if not _claim_lot_state(db, lot_db.id, DeliveryLotState.PROCESSING):
+            db.commit()  # another poll already stored these routes: release the lock and read them
+            plan_db = load_delivery_plan_detail(db, plan_db.id)
+            return _dump_plan_or_500(plan_db)
+
         package_map = build_package_id_to_delivery_id_map(
             fetch_lot_delivery_rows(db, lot_db.id)
         )
@@ -475,6 +499,11 @@ def delivery_lots_id_plan_get(
                 serialize_plan_poll(lot_db.state, plan_db.optimizer_id),
                 plan_db.optimizer_id,
             )
+
+        if not _claim_lot_state(db, lot_db.id, DeliveryLotState.OPTIMIZING):
+            db.commit()  # another poll already applied this reoptimize
+            plan_db = load_delivery_plan_detail(db, plan_db.id)
+            return _dump_plan_or_500(plan_db)
 
         package_map = build_package_id_to_delivery_id_map(
             fetch_lot_delivery_rows(db, lot_db.id)
