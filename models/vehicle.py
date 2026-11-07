@@ -26,6 +26,11 @@ class VehicleBase(SQLModel):
     engine_type: VehicleEngineType | None = Field(default=None, sa_column=Column(Enum(VehicleEngineType)))
     # May this type turn around (U-turn)? None = inherit the plan's rule.
     allow_uturns: bool | None = Field(default=None)
+    # The type's own clock, inherited by every plan that uses it unless the plan's vehicle override says
+    # otherwise: average speed (km/h, the fallback for legs without graph travel time) and minutes per stop.
+    # None = the plan's value.
+    avg_speed_kph: float | None = Field(default=None, ge=1)
+    service_time_min: float | None = Field(default=None, ge=0)
 
 class VehicleCreate(VehicleBase):
     pass

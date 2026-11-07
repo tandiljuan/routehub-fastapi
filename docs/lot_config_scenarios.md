@@ -1,15 +1,23 @@
-# Fleet, lot config, and optimizer wire — public API guide
+# Fleet, lot config, and optimizer wire — scenario matrix
 
 How to combine the current endpoints to build the outbound optimizer request
 (`POST /lots/{id}/plan` → wire). Each catalog row maps to a scenario in
 `scripts/explore_wire_request_matrix.py` and, when applicable, to
 `scripts/test_plan_flow.py --scenario …`.
 
+The matrix below does **not** cover the contract added after it was written.
+That contract is in `api-planning.md`: `config.routing` (`route_end`,
+`route_end_point`, `visit_zones_once`, `uturn_policy`, `use_graph_travel_time`),
+`vehicle.allow_uturns`, `PATCH /plan` `first_stop`, a failed plan (`CANCELED`
++ `error`, `410` on `/plan/status`), per-vehicle time limits, and
+`extra.packages[].volume_cm3`. The integrator file to hand over is
+`vepathos-api-doc/openapi.json` (not `routehub-openapi` 0.20.0).
+
 ---
 
 ## Do we cover all public API variants?
 
-**Yes — the scenario matrix covers the relevant public API surface** (patterns A–J,
+**The matrix covers the surface it was written for** (patterns A–J,
 legacy columns, units, errors, PATCH flows). Summary:
 
 | Area | Covered? | Scenarios | Notes |
@@ -24,7 +32,7 @@ legacy columns, units, errors, PATCH flows). Summary:
 | Legacy `route_limits` (global) | Yes | `03`, `09`, `14` | Stops/km/time on the lot |
 | `config.rebalance` + `schedule` + `zone` | Yes | `01`, `10`, `15`, `18`, **`20`**, **`21`** | Includes merge via `PATCH /lots` |
 | Units (`METER`, `HOUR`) | Yes | `14` | Converted to km / minutes in wire |
-| Rebalance time vs route time | Yes | `15` | `rebalance_by_time` branch wins |
+| Rebalance time vs route time | Yes | `15` | Duration card (`route_limits`) wins over the time branch. Per-vehicle `route.time_*` is stricter still and is not a scenario here; see `api-planning.md` |
 | Rebalance by distance (flag) | Yes | **`20`** | Flag on wire; km limits from fleet |
 | Rebalance by weight (ratios) | Yes | **`21`** | Flag + min/max weight ratios in wire |
 | Rebalance volume **explicit off** | Yes | **`24`** | `{ enabled: false }` while weight on |

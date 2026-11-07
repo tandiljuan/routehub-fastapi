@@ -41,6 +41,7 @@ from models.enum import (
 from models.lot_config import (
     LotConfig,
     VehicleBehaviorConfig,
+    VehicleClockConfig,
     VehicleCapacityConfig,
     VehicleRouteConfig,
     VehicleRunConfig,
@@ -163,7 +164,8 @@ def build_plan_vehicle(
             else False
         ),
         profile=vehicle_profile(vehicle),
-        allow_uturns=getattr(vehicle, "allow_uturns", None),
+        # clock and U-turn rule of this vehicle in this plan (lot vehicles routing > catalog allow_uturns)
+        **vehicle_clock(lot_config, vehicle, wire_type=wire_type),
     )
 
 
@@ -543,7 +545,25 @@ def _merge_run_configs(base: VehicleRunConfig, override: VehicleRunConfig) -> Ve
         capacity=_merge_branch(VehicleCapacityConfig, base.capacity, override.capacity),
         route=_merge_branch(VehicleRouteConfig, base.route, override.route),
         behavior=_merge_branch(VehicleBehaviorConfig, base.behavior, override.behavior),
+        routing=_merge_branch(VehicleClockConfig, getattr(base, "routing", None), getattr(override, "routing", None)),
     )
+
+
+def vehicle_clock(lot_config: LotConfig | None, vehicle, *, wire_type: str | None = None) -> dict:
+    """The clock a catalog vehicle drives with in this plan, as optimizer fields (only what was configured):
+    service_time_min, avg_speed_kph, use_graph_travel_time and allow_uturns from lot vehicles.defaults/overrides
+    routing or, failing that, from the catalog vehicle (its own speed, minutes per stop and U-turn rule).
+    Absent keys inherit the plan / engine default."""
+    catalog_id = str(getattr(vehicle, "id", "") or "")
+    catalog_name = getattr(vehicle, "name", None) or catalog_id
+    cfg = _resolve_vehicle_config(lot_config or LotConfig(), catalog_id, wire_type=wire_type, catalog_name=catalog_name)
+    clock = cfg.routing.model_dump(exclude_none=True) if cfg.routing is not None else {}
+    for key in ("allow_uturns", "avg_speed_kph", "service_time_min"):
+        if clock.get(key) is None:
+            clock.pop(key, None)
+            if getattr(vehicle, key, None) is not None:
+                clock[key] = getattr(vehicle, key)
+    return clock
 
 
 def _resolve_vehicle_config(

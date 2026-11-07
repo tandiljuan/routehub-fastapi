@@ -28,10 +28,36 @@ class VehicleBehaviorConfig(SQLModel):
     priority: int | None = None
     overflow_vehicle: bool | None = None
 
+class VehicleClockConfig(SQLModel):
+    """Per-vehicle clock and U-turn rule for this plan. Each field overrides the plan's routing.* (and the catalog's
+    allow_uturns) for the routes of that vehicle; None inherits. The optimizer resolves route > vehicle > plan."""
+
+    service_time_min: float | None = None
+    avg_speed_kph: float | None = None
+    use_graph_travel_time: bool | None = None
+    allow_uturns: bool | None = None
+
+    @field_validator("service_time_min", mode="before")
+    @classmethod
+    def _service_in_range(cls, value: Any) -> Any:
+        try:
+            return float(value) if value is not None and float(value) >= 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("avg_speed_kph", mode="before")
+    @classmethod
+    def _speed_in_range(cls, value: Any) -> Any:
+        try:
+            return float(value) if value is not None and float(value) >= 1 else None
+        except (TypeError, ValueError):
+            return None
+
 class VehicleRunConfig(SQLModel):
     capacity: VehicleCapacityConfig | None = None
     route: VehicleRouteConfig | None = None
     behavior: VehicleBehaviorConfig | None = None
+    routing: VehicleClockConfig | None = None
 
 class FleetRunProfile(SQLModel):
     route: VehicleRouteConfig | None = None

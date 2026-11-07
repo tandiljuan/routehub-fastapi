@@ -31,3 +31,7 @@ class PlanVehicle(BaseModel):
     profile: str | None = None
     # Whether this type may turn around; overrides the plan's routing.uturn_policy. None = inherit the plan.
     allow_uturns: bool | None = None
+    # Clock of this type's routes; each overrides the plan's routing.* key. None = inherit the plan.
+    service_time_min: float | None = None
+    avg_speed_kph: float | None = None
+    use_graph_travel_time: bool | None = None
