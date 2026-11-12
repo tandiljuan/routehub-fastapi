@@ -54,6 +54,7 @@ from libs.lot_plan_adapter import (
     vehicle_profile,
 )
 from libs.plan_build import build_plan_context_for_lot, compute_fallback_stops, graph_tag_for_lot
+from libs.plan_wire import wire_request
 from models.delivery_plan import (
     DeliveryPath,
     DeliveryPlan,
@@ -270,12 +271,15 @@ def delivery_lots_id_delete(
         "purged_deliveries": purged_deliveries,
     }
 
-def build_lot_plan_context(db, lot_db):
+def build_lot_plan_context(db, lot_db, fleet_links=None):
     """The plan request for a lot, as the engine receives it, plus the lot's delivery rows. Also used by the BKS
-    optimization routes, so both services get exactly the same request. Raises 422 when the lot cannot be planned
-    (no vehicles, no deliveries, stop limits, invalid configuration)."""
+    optimization routes, so both services get exactly the same request. ``fleet_links`` replaces the lot's fleet
+    (a lot whose run-only fleet is gone). Raises 422 when the lot cannot be planned (no vehicles, no deliveries,
+    stop limits, invalid configuration)."""
+    if fleet_links is None:
+        fleet_links = lot_db.fleet.vehicles
     v_sum = 0
-    for link in lot_db.fleet.vehicles:
+    for link in fleet_links:
         v_sum += link.quantity
 
     if not v_sum:
@@ -307,7 +311,7 @@ def build_lot_plan_context(db, lot_db):
         plan = build_plan_context_for_lot(
             lot_db=lot_db,
             lot_config=lot_config,
-            fleet_links=lot_db.fleet.vehicles,
+            fleet_links=fleet_links,
             delivery_rows=delivery_rows,
             fallback_stops_min=route_stops_min,
             fallback_stops_max=route_stops_max,
@@ -353,6 +357,8 @@ def delivery_lots_id_plan_post(
         "delivery_lot_id": lot_db.id,
         "optimizer_id": plan_id,
     })
+    # Kept with the plan: a later BKS optimization of the lot sends exactly this request.
+    plan_db.request_data = wire_request(plan)
     db.add(plan_db)
     lot_db.state = DeliveryLotState.PROCESSING
     db.add(lot_db)

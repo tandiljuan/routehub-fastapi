@@ -29,14 +29,16 @@ from libs.lot_persistence import (
     load_delivery_plan_detail,
     persist_processing_plan_routes,
 )
-from libs.lot_plan_adapter import build_wire_type_to_vehicle_id_map
+from libs.lot_plan_adapter import _FleetLinkStub, _stub_vehicle, build_wire_type_to_vehicle_id_map
 from libs.package_wire import build_package_id_to_delivery_id_map
-from libs.plan_wire import plan_to_wire_payload
+from libs.plan_wire import wire_request
 from libs.tenant.context import CompanyDep, assert_company_match
 from models.bks_optimization import BksOptimization
 from models.database import Session as DbSession
 from models.delivery_plan import DeliveryPlan
 from models.enum import DeliveryLotState
+from models.lot_config import LotConfig
+from models.vehicle import Vehicle
 from routes.delivery_lots import _dump_plan_or_500, build_lot_plan_context
 
 logger = logging.getLogger(__name__)
@@ -86,12 +88,55 @@ def _record(db, lot_db, optimization_id: str) -> BksOptimization:
     return row
 
 
-def _request(db, lot_db) -> tuple[dict, str]:
-    """The lot's plan request (engine wire format) and its hash."""
-    plan, _ = build_lot_plan_context(db, lot_db)
-    payload = plan_to_wire_payload(plan)
+def _request(db, lot_db, keep: bool = False) -> tuple[dict, str]:
+    """The plan request of the lot's latest plan (engine wire format, as it was sent) and its hash.
+
+    A plan from before requests were stored gets one built from the lot now: with the lot's fleet, or, when the
+    run-only fleet is gone, with the vehicles its routes used. ``keep`` stores that rebuilt request on the plan, so
+    the optimization and its later checks compare against the same request."""
+    latest = lot_db.plans[-1] if lot_db.plans else None
+    if latest is not None and latest.request_data:
+        payload = latest.request_data
+    else:
+        links = None if lot_db.fleet is not None else _fleet_from_routes(lot_db, latest)
+        plan, _ = build_lot_plan_context(db, lot_db, links)
+        payload = wire_request(plan)
+        if keep and latest is not None:
+            latest.request_data = payload
+            db.add(latest)
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
     return payload, digest
+
+
+def _fleet_from_routes(lot_db, plan_db: DeliveryPlan | None) -> list[_FleetLinkStub]:
+    """A stand-in fleet for a lot whose run-only fleet was deleted: one vehicle per route of its latest plan, typed
+    as the plan named it. A type the lot's configuration overrides keeps that spelling, so its rules apply."""
+    if plan_db is None or not plan_db.paths:
+        raise HTTPException(status_code=409, detail={
+            "code": "lot_request_unavailable",
+            "message": "The lot has no fleet and no routes to rebuild it from: plan it again first"})
+    config = lot_db.config_data or LotConfig()
+    overrides = {o.vehicle_id.lower(): o.vehicle_id
+                 for o in (config.vehicles.overrides if config.vehicles and config.vehicles.overrides else [])}
+    fleet: dict[str, _FleetLinkStub] = {}
+    for path in plan_db.paths:
+        typed = str((path.route_data or {}).get("vehicle_type") or "")
+        vehicle = path.vehicle
+        if not typed and vehicle is None:
+            raise HTTPException(status_code=409, detail={
+                "code": "lot_request_unavailable",
+                "message": "A route of the lot's plan has no vehicle: plan the lot again first"})
+        name = getattr(vehicle, "name", None) if vehicle is not None else None
+        wire = overrides.get(typed.lower()) or (name if name and name.lower() == typed.lower() else None) \
+            or name or typed
+        link = fleet.get(wire.lower())
+        if link is None:
+            fleet[wire.lower()] = _FleetLinkStub(
+                1, vehicle if vehicle is not None else _stub_vehicle(wire), wire_type=wire,
+                catalog_vehicle_id=str(vehicle.id) if vehicle is not None else None)
+        else:
+            link.quantity += 1
+    return list(fleet.values())
 
 
 def _current_plan(lot_db) -> DeliveryPlan | None:
@@ -100,6 +145,26 @@ def _current_plan(lot_db) -> DeliveryPlan | None:
         return None
     plan_db = lot_db.plans[-1]
     return plan_db if plan_db.paths else None
+
+
+def _vehicle_ids(db, lot_db) -> dict[str, int]:
+    """Wire vehicle type → catalog vehicle id. From the lot's fleet; when the run-only fleet is gone, from the
+    vehicles the latest plan's routes used (the type as the engine echoed it) and the company's catalog (the
+    request names vehicles by catalog name or id)."""
+    if lot_db.fleet is not None:
+        return build_wire_type_to_vehicle_id_map(lot_db.fleet.vehicles)
+    mapping: dict[str, int] = {}
+    for path in (lot_db.plans[-1].paths if lot_db.plans else []):
+        typed = (path.route_data or {}).get("vehicle_type")
+        if typed and path.vehicle_id is not None:
+            mapping.setdefault(str(typed), int(path.vehicle_id))
+            mapping.setdefault(str(typed).lower(), int(path.vehicle_id))
+    for vehicle in db.exec(select(Vehicle).where(Vehicle.company_id == lot_db.company_id)).all():
+        mapping.setdefault(str(vehicle.id), int(vehicle.id))
+        if vehicle.name:
+            mapping.setdefault(vehicle.name, int(vehicle.id))
+            mapping.setdefault(vehicle.name.lower(), int(vehicle.id))
+    return mapping
 
 
 def baseline_routes(plan_db: DeliveryPlan, vehicle_types: list[str]) -> list[dict]:
@@ -113,10 +178,13 @@ def baseline_routes(plan_db: DeliveryPlan, vehicle_types: list[str]) -> list[dic
                        for pkg in wp.get("packages") or [] if pkg.get("package_id") is not None]
         if not package_ids:
             continue
-        if not data.get("vehicle_type"):
-            raise HTTPException(status_code=422, detail="The current plan does not record its vehicle types; "
-                                                        "plan the lot again before optimizing it")
-        vtype = str(data["vehicle_type"])
+        # A route re-sequenced in place ("start at this stop") keeps its vehicle but not the type the engine echoed.
+        typed = data.get("vehicle_type") or (getattr(path.vehicle, "name", None) if path.vehicle is not None else None)
+        if not typed:
+            raise HTTPException(status_code=422, detail={
+                "code": "plan_without_vehicle_types",
+                "message": "The current plan does not record its vehicle types; plan the lot again before optimizing it"})
+        vtype = str(typed)
         routes.append({"vehicle_type": names.get(vtype.lower(), vtype), "package_ids": package_ids})
     return routes
 
@@ -128,16 +196,17 @@ def _with_lot(item: dict, row: BksOptimization, stale: bool | None = None) -> di
     return out
 
 
-@router.post("/{id}/bks-optimizations", status_code=202, summary="Optimize the lot's plan (BKS)")
-def bks_optimizations_post(id: int, body: BksOptimizationCreate, db: DbSession, company_id: CompanyDep):
-    client = _client()
-    lot_db = _lot(db, id, company_id)
+def _service_request(db, lot_db, body: BksOptimizationCreate, keep: bool = False):
+    """The service's request for the lot (its plan request, the current plan as baseline, the caller's options),
+    the lot's current plan and the request's hash. Raises 409/422 when the lot cannot be optimized now."""
     if lot_db.state in BUSY:
-        raise HTTPException(status_code=409, detail="The lot is being planned; wait until it finishes")
+        raise HTTPException(status_code=409, detail={"code": "lot_busy",
+                                                     "message": "The lot is being planned; wait until it finishes"})
     plan_db = _current_plan(lot_db)
     if plan_db is None:
-        raise HTTPException(status_code=409, detail="The lot has no plan to improve; plan it first")
-    payload, digest = _request(db, lot_db)
+        raise HTTPException(status_code=409, detail={"code": "lot_not_planned",
+                                                     "message": "The lot has no plan to improve; plan it first"})
+    payload, digest = _request(db, lot_db, keep=keep)
     options = dict(body.options or {}, **({"label": body.label} if body.label else {}))
     ref = {"lot_id": str(lot_db.id), "plan_id": str(plan_db.id)}
     if lot_db.milestone is not None and lot_db.milestone.name:  # the service files the run under the lot's depot
@@ -148,6 +217,42 @@ def bks_optimizations_post(id: int, body: BksOptimizationCreate, db: DbSession, 
                "baseline": {"source": "plan", "routes": baseline_routes(
                    plan_db, [v.get("type") for v in payload.get("vehicles") or [] if v.get("type")])},
                "options": options}
+    return request, plan_db, digest
+
+
+def _blocking(detail) -> dict:
+    """An HTTPException detail as the service's error body."""
+    if isinstance(detail, dict) and detail.get("code"):
+        return {"code": detail["code"], "message": detail.get("message") or "", "details": detail.get("details")}
+    return {"code": "lot_not_optimizable", "message": str(detail), "details": None}
+
+
+@router.post("/{id}/bks-optimizations/preflight", summary="Check whether the lot's plan can be optimized (BKS)")
+def bks_optimizations_preflight(id: int, body: BksOptimizationCreate, db: DbSession, company_id: CompanyDep):
+    """The same checks as starting one, without starting it. Always 200 for a lot of the caller: ``ok`` false with
+    ``blocking`` (code, message) when the lot or the service would refuse it."""
+    client = _client()
+    lot_db = _lot(db, id, company_id)
+    try:
+        request, _, _ = _service_request(db, lot_db, body)
+        return client.preflight(company_id, request)
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            raise
+        return {"ok": False, "blocking": [_blocking(exc.detail)]}
+    except BksOptimizerError as exc:
+        if not exc.status or not 400 <= exc.status < 500 or exc.status == 429:
+            raise _upstream_error(exc) from exc
+        return {"ok": False, "blocking": [{"code": exc.code or "bks_optimizer_refused", "message": str(exc),
+                                           "details": exc.details}]}
+
+
+@router.post("/{id}/bks-optimizations", status_code=202, summary="Optimize the lot's plan (BKS)")
+def bks_optimizations_post(id: int, body: BksOptimizationCreate, db: DbSession, company_id: CompanyDep):
+    client = _client()
+    lot_db = _lot(db, id, company_id)
+    request, plan_db, digest = _service_request(db, lot_db, body, keep=True)
+    options = request["options"]
     key = "lot-{}-plan-{}-{}".format(lot_db.id, plan_db.id, hashlib.sha256(
         (digest + json.dumps(options, sort_keys=True)).encode()).hexdigest()[:24])
     try:
@@ -160,7 +265,7 @@ def bks_optimizations_post(id: int, body: BksOptimizationCreate, db: DbSession, 
                               delivery_lot_id=lot_db.id, base_plan_id=plan_db.id, context_hash=digest,
                               label=body.label)
         db.add(row)
-        db.commit()
+    db.commit()  # the record, and the plan's rebuilt request
     logger.info("lot.bks.queue company=%s lot=%s plan=%s optimization=%s", company_id, id, plan_db.id,
                 row.optimization_id)
     return _with_lot(accepted, row)
@@ -233,7 +338,8 @@ def bks_optimizations_select(id: int, optimization_id: str, solution_id: str, db
     lot_db = _lot(db, id, company_id)
     row = _record(db, lot_db, optimization_id)
     if lot_db.state in BUSY:
-        raise HTTPException(status_code=409, detail="The lot is being planned; wait until it finishes")
+        raise HTTPException(status_code=409, detail={"code": "lot_busy",
+                                                     "message": "The lot is being planned; wait until it finishes"})
     if _request(db, lot_db)[1] != row.context_hash:
         raise HTTPException(status_code=409, detail={
             "code": "lot_changed",
@@ -242,14 +348,17 @@ def bks_optimizations_select(id: int, optimization_id: str, solution_id: str, db
         result = client.routes(company_id, optimization_id, solution_id)
     except BksOptimizerError as exc:
         raise _upstream_error(exc) from exc
-    plan_db = DeliveryPlan(delivery_lot_id=lot_db.id, optimizer_id=f"{optimization_id}:{solution_id}", origin="bks")
+    base_request = lot_db.plans[-1].request_data if lot_db.plans else None
+    # The applied solution answers the same request: it keeps it, so the lot can be optimized again from it.
+    plan_db = DeliveryPlan(delivery_lot_id=lot_db.id, optimizer_id=f"{optimization_id}:{solution_id}", origin="bks",
+                           request_data=base_request)
     db.add(plan_db)
     db.flush()
     try:
         persist_processing_plan_routes(
             db, plan_db, lot_db.milestone.id, result.routes or [], result=result,
             package_to_delivery=build_package_id_to_delivery_id_map(fetch_lot_delivery_rows(db, lot_db.id)),
-            wire_type_to_vehicle=build_wire_type_to_vehicle_id_map(lot_db.fleet.vehicles),
+            wire_type_to_vehicle=_vehicle_ids(db, lot_db),
         )
         client.select(company_id, optimization_id, solution_id)
     except ValueError as exc:

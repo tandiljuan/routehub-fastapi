@@ -54,6 +54,9 @@ class DeliveryPlan(SQLModel, table=True):
     #: Who produced the routes: "engine", or "bks" for a solution picked from a BKS optimization
     #: (optimizer_id is then "<bko id>:<solution id>").
     origin: str = Field(default="engine", max_length=16)
+    #: The plan request sent to the engine for this plan (wire payload). A BKS optimization of the lot starts from
+    #: it: the lot's own fleet may be gone by then (the web plans with a run-only fleet it deletes afterwards).
+    request_data: dict | None = Field(default=None, sa_column=Column(JSON))
     totals_data: dict | None = Field(default=None, sa_column=Column(JSON))
 
     lot: DeliveryLot = Relationship(back_populates="plans")
@@ -62,6 +65,7 @@ class DeliveryPlan(SQLModel, table=True):
     @model_serializer(mode='wrap')
     def serialize_model(self, handler: sfWrapHandler) -> dict[str, object]:
         serialized = handler(self)
+        serialized.pop('request_data', None)  # kept for BKS optimizations; never part of the plan answer
         serialized['state'] = self.lot.state
         if self.optimizer_id:
             serialized['session_id'] = self.optimizer_id

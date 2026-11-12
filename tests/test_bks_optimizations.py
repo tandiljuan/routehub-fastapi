@@ -8,7 +8,7 @@ solution's routes, stored like an engine result.
 import json
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("RDBMS_URL", "sqlite://")
 
@@ -80,6 +80,9 @@ class FakeBks:
         return {"solution_id": sid}
 
 
+_original_request = bks_route._request
+
+
 class _BksCase(_LotPlanCase):
     def setUp(self):
         super().setUp()
@@ -87,7 +90,7 @@ class _BksCase(_LotPlanCase):
         self.digest = "hash-1"
         patches = [patch.object(bks_route.bks, "client", lambda: self.fake),
                    patch.object(bks_route, "_request",
-                                lambda db, lot: ({"addresses": [], "vehicles": [{"type": "van"}]}, self.digest)),
+                                lambda db, lot, keep=False: ({"addresses": [], "vehicles": [{"type": "van"}]}, self.digest)),
                    patch.object(bks_route, "build_wire_type_to_vehicle_id_map", lambda links: {"van": 1})]  # the fleet
         for p in patches:
             p.start()
@@ -239,3 +242,151 @@ class TestClient(unittest.TestCase):
         with self.assertRaises(BksOptimizerError) as e:
             BksOptimizer("http://bks", "k", transport=httpx.MockTransport(handler)).get(1, "bko_1")
         self.assertIsNone(e.exception.status)
+
+
+class TestStoredRequest(_BksCase):
+    """The web plans with a run-only fleet it deletes afterwards: the lot keeps its plan but not its fleet. The BKS
+    request comes from the request the plan stored, and an applied solution keeps it."""
+
+    STORED = {"addresses": [{"id": "x"}], "vehicles": [{"type": "van"}]}
+
+    def _with_stored_request(self):
+        lot_id, plan_id = self._processed_lot()
+        plan = self.db.get(DeliveryPlan, plan_id)
+        plan.request_data = self.STORED
+        self.db.add(plan)
+        self.db.commit()
+        return lot_id
+
+    def test_the_stored_request_is_sent_without_the_lots_fleet(self):
+        lot_id = self._with_stored_request()
+        lot = self.db.get(DeliveryLot, lot_id)
+        with patch.object(bks_route, "build_lot_plan_context", side_effect=AssertionError("must not rebuild")):
+            payload, digest = _original_request(self.db, lot)
+        self.assertEqual(payload, self.STORED)
+        self.assertEqual(_original_request(self.db, lot)[1], digest)
+
+    def test_an_applied_solution_keeps_the_request(self):
+        lot_id = self._with_stored_request()
+        self._post(lot_id)
+        bks_route.bks_optimizations_select(id=lot_id, optimization_id="bko_000000000001", solution_id="sol_3",
+                                           db=self.db, company_id=1)
+        self.db.expire_all()
+        self.assertEqual(self.db.get(DeliveryLot, lot_id).plans[-1].request_data, self.STORED)
+
+    def test_without_the_lots_fleet_vehicles_come_from_the_catalog(self):
+        from models.vehicle import Vehicle
+        lot_id = self._with_stored_request()
+        lot = self.db.get(DeliveryLot, lot_id)
+        self.db.add(Vehicle(id=91, company_id=lot.company_id, name="Van", type="VAN"))
+        self.db.commit()
+        lot.fleet_id = None
+        self.db.add(lot)
+        self.db.commit()
+        self.db.expire_all()
+        self.assertEqual(bks_route._vehicle_ids(self.db, self.db.get(DeliveryLot, lot_id))["Van"], 91)
+
+
+class TestOldLot(_BksCase):
+    """A lot planned before plans stored their request, whose run-only fleet is gone: the request is rebuilt from
+    the lot with one vehicle per route of its latest plan, and stored on the plan when an optimization starts."""
+
+    def _old_lot(self):
+        from models.vehicle import Vehicle
+        lot_id, plan_id = self._processed_lot()
+        lot = self.db.get(DeliveryLot, lot_id)
+        self.db.add(Vehicle(id=91, company_id=lot.company_id, name="Van", type="VAN"))
+        plan = self.db.get(DeliveryPlan, plan_id)
+        for path in plan.paths:
+            path.vehicle_id = 91
+            self.db.add(path)
+        self.db.add(DeliveryPath(delivery_plan_id=plan.id, milestone_id=self.milestone.id, vehicle_id=91,
+                                 route_data={"route_index": 1, "vehicle_type": "VAN", "optimized_waypoints": []}))
+        self.db.add(DeliveryPath(delivery_plan_id=plan.id, milestone_id=self.milestone.id, route_data={
+            "route_index": 2, "vehicle_type": "EXTRA-AB12", "optimized_waypoints": []}))  # its vehicle was deleted
+        lot.fleet_id = None
+        self.db.add(lot)
+        self.db.commit()
+        self.db.expire_all()
+        return self.db.get(DeliveryLot, lot_id)
+
+    def test_the_fleet_comes_from_the_routes(self):
+        lot = self._old_lot()
+        links = {link.wire_type: link for link in bks_route._fleet_from_routes(lot, lot.plans[-1])}
+        self.assertEqual(sorted(links), ["EXTRA-AB12", "Van"])
+        self.assertEqual((links["Van"].quantity, links["Van"].catalog_vehicle_id), (2, "91"))
+        self.assertEqual((links["EXTRA-AB12"].quantity, links["EXTRA-AB12"].vehicle.name), (1, "EXTRA-AB12"))
+        self.assertEqual(bks_route._vehicle_ids(self.db, lot)["VAN"], 91)
+
+    def test_the_rebuilt_request_is_kept_on_the_plan(self):
+        lot = self._old_lot()
+        seen = []
+        built = MagicMock()
+
+        def build(db, lot_db, links=None):
+            seen.append(links)
+            return built, []
+
+        with patch.object(bks_route, "build_lot_plan_context", side_effect=build), \
+                patch.object(bks_route, "wire_request", return_value={"vehicles": [{"type": "Van"}]}):
+            payload, digest = _original_request(self.db, lot)
+            self.assertIsNone(lot.plans[-1].request_data)  # a read does not store it
+            _original_request(self.db, lot, keep=True)
+        self.assertEqual(sum(link.quantity for link in seen[0]), 3)
+        self.db.commit()
+        self.db.expire_all()
+        self.assertEqual(self.db.get(DeliveryLot, lot.id).plans[-1].request_data, payload)
+
+    def test_without_routes_it_asks_to_plan_again(self):
+        lot = self._old_lot()
+        with self.assertRaises(HTTPException) as err:
+            bks_route._fleet_from_routes(lot, None)
+        self.assertEqual(err.exception.detail["code"], "lot_request_unavailable")
+
+
+class TestPreflight(_BksCase):
+    def _preflight(self, lot_id):
+        return bks_route.bks_optimizations_preflight(id=lot_id, body=bks_route.BksOptimizationCreate(), db=self.db,
+                                                    company_id=1)
+
+    def test_answers_the_services_check_without_starting(self):
+        lot_id, _ = self._processed_lot()
+        self.fake.preflight = lambda company, body: {"ok": True, "stops": 3, "blocking": []}
+        self.assertTrue(self._preflight(lot_id)["ok"])
+        self.assertFalse([c for c in self.fake.calls if c[0] == "submit"])
+
+    def test_a_refusal_is_a_blocking_reason(self):
+        lot_id, _ = self._processed_lot()
+
+        def refuse(company, body):
+            raise BksOptimizerError("no U-turns", status=422, code="uturn_not_supported",
+                                    details={"uturn_policies": ["no_uturn"]})
+
+        self.fake.preflight = refuse
+        out = self._preflight(lot_id)
+        self.assertEqual((out["ok"], out["blocking"][0]["code"]), (False, "uturn_not_supported"))
+
+    def test_a_busy_lot_is_a_blocking_reason(self):
+        lot_id, _ = self._processed_lot()
+        lot = self.db.get(DeliveryLot, lot_id)
+        lot.state = DeliveryLotState.PROCESSING
+        self.db.add(lot)
+        self.db.commit()
+        self.assertEqual(self._preflight(lot_id)["blocking"][0]["code"], "lot_busy")
+
+
+class TestBaseline(_BksCase):
+    def test_a_route_without_its_echoed_type_uses_its_vehicle(self):
+        """A route re-sequenced in place ("start at this stop") loses the type the engine echoed, not its vehicle."""
+        from models.vehicle import Vehicle
+        lot_id, plan_id = self._processed_lot()
+        self.db.add(Vehicle(id=92, company_id=1, name="Van", type="VAN"))
+        plan = self.db.get(DeliveryPlan, plan_id)
+        for path in plan.paths:
+            path.vehicle_id = 92
+            path.route_data = {k: v for k, v in path.route_data.items() if k != "vehicle_type"}
+            self.db.add(path)
+        self.db.commit()
+        self.db.expire_all()
+        routes = bks_route.baseline_routes(self.db.get(DeliveryPlan, plan_id), ["van"])
+        self.assertEqual(routes, [{"vehicle_type": "van", "package_ids": ["11", "12", "13"]}])
