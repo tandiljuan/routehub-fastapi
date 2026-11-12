@@ -139,7 +139,12 @@ def bks_optimizations_post(id: int, body: BksOptimizationCreate, db: DbSession, 
         raise HTTPException(status_code=409, detail="The lot has no plan to improve; plan it first")
     payload, digest = _request(db, lot_db)
     options = dict(body.options or {}, **({"label": body.label} if body.label else {}))
-    request = {"external_ref": {"lot_id": str(lot_db.id), "plan_id": str(plan_db.id)}, "request": payload,
+    ref = {"lot_id": str(lot_db.id), "plan_id": str(plan_db.id)}
+    if lot_db.milestone is not None and lot_db.milestone.name:  # the service files the run under the lot's depot
+        ref["depot"] = lot_db.milestone.name
+    if payload.get("date"):
+        ref["day"] = str(payload["date"])[:10]
+    request = {"external_ref": ref, "request": payload,
                "baseline": {"source": "plan", "routes": baseline_routes(
                    plan_db, [v.get("type") for v in payload.get("vehicles") or [] if v.get("type")])},
                "options": options}

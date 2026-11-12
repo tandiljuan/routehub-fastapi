@@ -119,7 +119,8 @@ class TestRequest(_BksCase):
         out = self._post(lot_id, options={"recipe": "rapida"}, label="Lote 1")
         (_, company, body, key), = [c for c in self.fake.calls if c[0] == "submit"]
         self.assertEqual(company, 1)
-        self.assertEqual(body["external_ref"], {"lot_id": str(lot_id), "plan_id": str(plan_id)})
+        self.assertEqual({k: body["external_ref"][k] for k in ("lot_id", "plan_id")}, {"lot_id": str(lot_id), "plan_id": str(plan_id)})
+        self.assertEqual(body["external_ref"].get("depot"), self.milestone.name)  # the lot's depot
         self.assertEqual(body["baseline"], {"source": "plan", "routes": [
             {"vehicle_type": "van", "package_ids": ["11", "12", "13"]}]})
         self.assertEqual(body["options"], {"recipe": "rapida", "label": "Lote 1"})
