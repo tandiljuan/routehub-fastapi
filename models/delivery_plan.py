@@ -51,6 +51,9 @@ class DeliveryPlan(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     delivery_lot_id: int = Field(foreign_key="delivery_lot.id")
     optimizer_id: str
+    #: Who produced the routes: "engine", or "bks" for a solution picked from a BKS optimization
+    #: (optimizer_id is then "<bko id>:<solution id>").
+    origin: str = Field(default="engine", max_length=16)
     totals_data: dict | None = Field(default=None, sa_column=Column(JSON))
 
     lot: DeliveryLot = Relationship(back_populates="plans")

@@ -270,29 +270,10 @@ def delivery_lots_id_delete(
         "purged_deliveries": purged_deliveries,
     }
 
-@router.post(
-    "/{id}/plan",
-    status_code=202,
-    summary="Queue plan",
-    description="No body. Sends lot to the optimizer.",
-)
-def delivery_lots_id_plan_post(
-    id: int,
-    db: DbSession,
-    company_id: CompanyDep,
-):
-    if not optimizer:
-        raise HTTPException(status_code=500)
-
-    lot_db = load_delivery_lot_for_plan(db, id)
-    assert_company_match(lot_db, company_id, "Delivery lot")
-
-    if DeliveryLotState.PROCESSING == lot_db.state:
-        raise HTTPException(status_code=409, detail="The plan is being processed")
-
-    if DeliveryLotState.OPTIMIZING == lot_db.state:
-        raise HTTPException(status_code=409, detail="The plan is being optimized")
-
+def build_lot_plan_context(db, lot_db):
+    """The plan request for a lot, as the engine receives it, plus the lot's delivery rows. Also used by the BKS
+    optimization routes, so both services get exactly the same request. Raises 422 when the lot cannot be planned
+    (no vehicles, no deliveries, stop limits, invalid configuration)."""
     v_sum = 0
     for link in lot_db.fleet.vehicles:
         v_sum += link.quantity
@@ -334,6 +315,34 @@ def delivery_lots_id_plan_post(
         )
     except LotPlanConfigError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return plan, delivery_rows
+
+
+@router.post(
+    "/{id}/plan",
+    status_code=202,
+    summary="Queue plan",
+    description="No body. Sends lot to the optimizer.",
+)
+def delivery_lots_id_plan_post(
+    id: int,
+    db: DbSession,
+    company_id: CompanyDep,
+):
+    if not optimizer:
+        raise HTTPException(status_code=500)
+
+    lot_db = load_delivery_lot_for_plan(db, id)
+    assert_company_match(lot_db, company_id, "Delivery lot")
+
+    if DeliveryLotState.PROCESSING == lot_db.state:
+        raise HTTPException(status_code=409, detail="The plan is being processed")
+
+    if DeliveryLotState.OPTIMIZING == lot_db.state:
+        raise HTTPException(status_code=409, detail="The plan is being optimized")
+
+    plan, delivery_rows = build_lot_plan_context(db, lot_db)
 
     try:
         plan_id = optimizer.send_route_plan(plan=plan)

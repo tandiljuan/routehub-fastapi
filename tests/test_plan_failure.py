@@ -162,6 +162,7 @@ class TestProcessingFailure(_LotPlanCase):
             "session_id": "sess-1",
             "optimizer_session_id": "sess-1",
             "error": {"code": "area_too_large", "message": FAILED_BODY["message"]},
+            "origin": "engine",
         }
         self.assertEqual(status, 200)
         self.assertEqual(body, expected)

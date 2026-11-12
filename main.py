@@ -18,6 +18,7 @@ from routes import deliveries
 from routes import delivery_lots
 from routes import fallback
 from routes import smart_imports
+from routes import bks_optimizations
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "PRD")
 
@@ -105,6 +106,7 @@ app.include_router(milestones.router)
 app.include_router(deliveries.router)
 app.include_router(delivery_lots.router)
 app.include_router(smart_imports.router)
+app.include_router(bks_optimizations.router)
 app.include_router(fallback.router)
 
 @app.exception_handler(RequestValidationError)
