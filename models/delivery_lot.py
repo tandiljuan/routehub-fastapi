@@ -115,7 +115,10 @@ class DeliveryLot(SQLModel, table=True):
     fleet: Fleet | None = Relationship()
     deliveries: list["DeliveryLotDelivery"] = Relationship(back_populates="lot", passive_deletes="all")
     drivers: list["DeliveryLotDriver"] = Relationship(back_populates="lot", passive_deletes="all")
-    plans: list["DeliveryPlan"] = Relationship(back_populates="lot", passive_deletes="all")
+    # Oldest first, so ``plans[-1]`` is the lot's latest plan (an engine run, a re-sequence or an applied BKS
+    # solution). Without an order the database returns them in any order.
+    plans: list["DeliveryPlan"] = Relationship(back_populates="lot", passive_deletes="all",
+                                               sa_relationship_kwargs={"order_by": "DeliveryPlan.id"})
 
     def normalize_submitted_dict(lot: dict) -> dict:
         # Parse IDs

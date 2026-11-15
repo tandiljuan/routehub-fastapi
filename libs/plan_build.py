@@ -6,6 +6,7 @@ import unicodedata
 from typing import Any
 
 from libs.lot_plan_adapter import (
+    default_min_stops,
     build_plan_clustering,
     build_plan_rebalance,
     vehicle_time_bounds,
@@ -87,12 +88,12 @@ def compute_fallback_stops(a_sum: int, v_sum: int, lot_db) -> tuple[int, int]:
     # emit: KMeans builds clusters up to average × (1 + size_cluster_tolerance).
     # A tighter margin (previously a fixed 5% against a 15% tolerance) made SIZE
     # rebalance reject clusters that clustering itself was allowed to create.
-    limit_stop_min = math.ceil(a_sum * 0.95)
+    # Without a minimum, DEFAULT_MIN_STOPS_SHARE of the maximum (it used to be 95 % of the average, which forced
+    # every route to about the same number of stops).
     limit_stop_max = math.floor(a_sum * (1 + cluster_size_tolerance()))
-    route_stops_min = math.floor(limit_stop_min / v_sum)
-    route_stops_min = lot_db.route_stops_min if lot_db.route_stops_min else route_stops_min
     route_stops_max = math.ceil(limit_stop_max / v_sum)
     route_stops_max = lot_db.route_stops_max if lot_db.route_stops_max else route_stops_max
+    route_stops_min = lot_db.route_stops_min if lot_db.route_stops_min else default_min_stops(route_stops_max)
     return route_stops_min, route_stops_max
 
 def build_plan_context_for_lot(

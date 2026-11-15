@@ -66,6 +66,15 @@ logger = logging.getLogger(__name__)
 # applies it; api-doc validate.ts and vepathos-mcp preflight_checks.py mirror it too.
 MIN_STOP_BAND_MARGIN = 0.10
 
+# A vehicle with no minimum stops set gets this share of its maximum (rounded down): max 55 → at least 11.
+# Low on purpose: the minimum only keeps a route from being nearly empty, it does not even out the routes.
+DEFAULT_MIN_STOPS_SHARE = 0.20
+
+
+def default_min_stops(max_stops):
+    """The minimum stops per route when none is set: DEFAULT_MIN_STOPS_SHARE of the maximum, rounded down."""
+    return math.floor(max_stops * DEFAULT_MIN_STOPS_SHARE) if max_stops else None
+
 _VOLUME_WIRE_UNITS: dict[VolumeUnit, str] = {
     VolumeUnit.CUBIC_CENTIMETER: "cm3",
     VolumeUnit.CUBIC_METER: "m3",
@@ -640,8 +649,9 @@ def _override_belongs_to_fleet(override, fleet_links) -> bool:
 def _deliveries_qty(route, lot_db, fallback_min, fallback_max):
     cfg_min = route.stops_min if route else None
     cfg_max = route.stops_max if route else None
-    smin = cfg_min or getattr(lot_db, "route_stops_min", None) or fallback_min
     smax = cfg_max or getattr(lot_db, "route_stops_max", None) or fallback_max
+    # No minimum set (vehicle nor lot): a share of this vehicle's own maximum.
+    smin = cfg_min or getattr(lot_db, "route_stops_min", None) or default_min_stops(smax) or fallback_min
     ceiling = math.floor(smax * (1 - MIN_STOP_BAND_MARGIN)) if smax is not None else None
     if smin is not None and ceiling is not None and smin > ceiling:
         logging.getLogger(__name__).warning(

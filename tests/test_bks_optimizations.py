@@ -390,3 +390,19 @@ class TestBaseline(_BksCase):
         self.db.expire_all()
         routes = bks_route.baseline_routes(self.db.get(DeliveryPlan, plan_id), ["van"])
         self.assertEqual(routes, [{"vehicle_type": "van", "package_ids": ["11", "12", "13"]}])
+
+
+class TestLatestPlan(_BksCase):
+    def test_the_latest_plan_is_the_one_with_the_highest_id(self):
+        """``plans[-1]`` is the lot's latest plan whatever order the database stores them in (an applied BKS solution
+        must be what GET /plan answers, or its reader never sees it land)."""
+        lot_id = self._seed(DeliveryLotState.PROCESSED)
+        for plan in self.db.exec(select(DeliveryPlan).where(DeliveryPlan.delivery_lot_id == lot_id)).all():
+            self.db.delete(plan)
+        self.db.commit()
+        self.db.add(DeliveryPlan(id=900, delivery_lot_id=lot_id, optimizer_id="bko_1:sol_9", origin="bks"))
+        self.db.commit()
+        self.db.add(DeliveryPlan(id=800, delivery_lot_id=lot_id, optimizer_id="engine-1", origin="engine"))
+        self.db.commit()
+        self.db.expire_all()
+        self.assertEqual([p.id for p in self.db.get(DeliveryLot, lot_id).plans], [800, 900])
