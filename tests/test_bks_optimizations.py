@@ -391,6 +391,25 @@ class TestBaseline(_BksCase):
         routes = bks_route.baseline_routes(self.db.get(DeliveryPlan, plan_id), ["van"])
         self.assertEqual(routes, [{"vehicle_type": "van", "package_ids": ["11", "12", "13"]}])
 
+    def test_a_route_carries_the_rule_the_optimizer_routed_it_by(self):
+        """The optimizer reports per route whether it took the shortest path or the fastest (on a country graph it
+        picks time on its own): stored with the plan and passed on, so the service measures the plan by the same."""
+        from libs.lot_persistence import _route_data_from_optimizer
+        from libs.optimizer.models import ResultRoute
+        route = ResultRoute.model_validate({"route_geometry": [[-34.6, -58.4]], "optimized_waypoints": [],
+                                            "weight_routes": "travel_time"})
+        self.assertEqual(_route_data_from_optimizer(route, 0)["weight_routes"], "travel_time")
+        lot_id, plan_id = self._processed_lot()
+        self.assertNotIn("weight_routes", bks_route.baseline_routes(self.db.get(DeliveryPlan, plan_id), ["van"])[0])
+        plan = self.db.get(DeliveryPlan, plan_id)
+        for path in plan.paths:
+            path.route_data = dict(path.route_data, weight_routes="travel_time")
+            self.db.add(path)
+        self.db.commit()
+        self.db.expire_all()
+        routes = bks_route.baseline_routes(self.db.get(DeliveryPlan, plan_id), ["van"])
+        self.assertEqual([r["weight_routes"] for r in routes], ["travel_time"])
+
 
 class TestLatestPlan(_BksCase):
     def test_the_latest_plan_is_the_one_with_the_highest_id(self):

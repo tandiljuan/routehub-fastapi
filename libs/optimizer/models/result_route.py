@@ -28,3 +28,6 @@ class ResultRoute(BaseModel):
     duration_hours: float | None = None
     duration_minutes: float | None = None
     tw_stats: dict | None = None
+    # How the optimizer routed this route: "length" (shortest path) or "travel_time". It may decide it on its own
+    # (country graph), so whoever measures the plan later (the BKS referee) reads it from here, not from the request.
+    weight_routes: str | None = None

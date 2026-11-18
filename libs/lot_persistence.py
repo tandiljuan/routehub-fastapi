@@ -469,6 +469,7 @@ def _route_data_from_optimizer(
         "duration_hours",
         "duration_minutes",
         "tw_stats",
+        "weight_routes",
     ):
         value = getattr(route, name, None)
         if value is not None:

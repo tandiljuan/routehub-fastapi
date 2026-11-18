@@ -185,7 +185,12 @@ def baseline_routes(plan_db: DeliveryPlan, vehicle_types: list[str]) -> list[dic
                 "code": "plan_without_vehicle_types",
                 "message": "The current plan does not record its vehicle types; plan the lot again before optimizing it"})
         vtype = str(typed)
-        routes.append({"vehicle_type": names.get(vtype.lower(), vtype), "package_ids": package_ids})
+        route = {"vehicle_type": names.get(vtype.lower(), vtype), "package_ids": package_ids}
+        # The rule the optimizer routed it by, so the service measures the plan with the same one. Plans stored
+        # before the optimizer reported it carry none: the service then goes by the plan request.
+        if data.get("weight_routes") in ("length", "travel_time"):
+            route["weight_routes"] = data["weight_routes"]
+        routes.append(route)
     return routes
 
 
