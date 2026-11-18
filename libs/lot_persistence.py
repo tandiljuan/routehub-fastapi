@@ -9,7 +9,7 @@ from libs.package_wire import resolve_delivery_id
 from models.enum import DeliveryLotState
 from models.delivery import Delivery
 from models.delivery_lot import DeliveryLot, DeliveryLotDelivery, DeliveryLotDriver
-from models.delivery_plan import PLAN_ERROR_KEY, DeliveryPath, DeliveryPathDelivery, DeliveryPlan
+from models.delivery_plan import CONSTRAINT_WARNINGS_KEY, PLAN_ERROR_KEY, DeliveryPath, DeliveryPathDelivery, DeliveryPlan
 from models.driver import Driver
 from models.fleet import Fleet, FleetVehicle
 
@@ -569,6 +569,12 @@ def _totals_data_from_result(result) -> dict | None:
         unserved = int(submitted) - int(routed)
         if unserved > 0:
             data["unserved_points"] = unserved
+
+    # The engine's warnings travel with the plan: the lot's plan returns them at its root
+    # (DeliveryPlan.serialize). Without this the web never saw an automatic adjustment.
+    warnings = [w for w in (getattr(result, "constraint_warnings", None) or []) if isinstance(w, dict)]
+    if warnings:
+        data[CONSTRAINT_WARNINGS_KEY] = warnings
 
     return data or None
 

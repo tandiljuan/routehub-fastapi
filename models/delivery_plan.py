@@ -44,6 +44,10 @@ class DeliveryRouteUpdate(SQLModel):
 # ({"code", "message"}). A failed plan has no totals, so the JSON column carries the reason
 # without a schema change; the serializer lifts it out as the top-level `error`.
 PLAN_ERROR_KEY = "plan_error"
+# Key inside `delivery_plan.totals_data` with the engine's warnings for the plan (automatic adjustments
+# and unmet preferences: [{"code", "message", …}]). Same idea: no schema change, and the serializer
+# lifts it out as the top-level `constraint_warnings`, where the web reads it.
+CONSTRAINT_WARNINGS_KEY = "constraint_warnings"
 
 class DeliveryPlan(SQLModel, table=True):
     __tablename__ = "delivery_plan"
@@ -116,8 +120,11 @@ class DeliveryPlan(SQLModel, table=True):
                 serialized['delivery_paths'] = delivery_paths
         totals = dict(self.totals_data or {})
         plan_error = totals.pop(PLAN_ERROR_KEY, None)
+        warnings = totals.pop(CONSTRAINT_WARNINGS_KEY, None)
         if totals:
             serialized['totals'] = totals
+        if warnings:
+            serialized[CONSTRAINT_WARNINGS_KEY] = warnings
         if plan_error:
             serialized['error'] = plan_error
             # Same keys as the PROCESSING poll ({"state", "routes": null, ...}) plus `error`.

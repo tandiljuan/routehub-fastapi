@@ -41,6 +41,40 @@ class TestTotalsFromResult(unittest.TestCase):
         self.assertEqual(len(data["rejected_deliveries"]), 1)
 
 
+class TestEngineWarnings(unittest.TestCase):
+    """The engine's constraint_warnings reach the lot's plan (the web reads them at its root)."""
+
+    WARNING = {"code": "fleet_min_above_volume", "configured_min_ratio": 0.3, "applied_min_ratio": 0.1622,
+               "load_volume": 3894036.0, "fleet_volume": 18000000.0, "message": "Ajuste automático de flota: …"}
+
+    def test_the_result_keeps_them_and_they_are_stored_with_the_totals(self):
+        result = ResultSet.model_validate({"totals": {"total_routes": 3, "total_points": 91},
+                                           "constraint_warnings": [self.WARNING, "no es un aviso"]})
+        self.assertEqual(result.constraint_warnings[0]["code"], "fleet_min_above_volume")
+        data = _totals_data_from_result(ResultSet(totals=ResultTotal(total_routes=3, total_points=91),
+                                                  constraint_warnings=[self.WARNING]))
+        self.assertEqual(data["constraint_warnings"], [self.WARNING])
+        self.assertEqual(data["total_routes"], 3)
+
+    def test_a_result_without_warnings_stores_none(self):
+        data = _totals_data_from_result(ResultSet(totals=ResultTotal(total_routes=3, total_points=91)))
+        self.assertNotIn("constraint_warnings", data)
+
+    def test_the_plan_returns_them_at_its_root_and_not_inside_totals(self):
+        from models.delivery_lot import DeliveryLot
+        from models.delivery_plan import DeliveryPlan
+
+        def plan_answer(totals_data):
+            plan = DeliveryPlan(delivery_lot_id=1, totals_data=totals_data)
+            plan.lot = DeliveryLot(company_id=1, state=DeliveryLotState.PROCESSED, milestone_id=1, fleet_id=1)
+            return plan.model_dump()
+
+        out = plan_answer({"total_routes": 3, "constraint_warnings": [self.WARNING]})
+        self.assertEqual(out["constraint_warnings"], [self.WARNING])
+        self.assertEqual(out["totals"], {"total_routes": 3})
+        self.assertNotIn("constraint_warnings", plan_answer({"total_routes": 3}))
+
+
 class TestCoerceDeliveryId(unittest.TestCase):
     def test_parses_numeric_strings(self):
         self.assertEqual(_coerce_delivery_id("42"), 42)

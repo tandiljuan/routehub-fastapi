@@ -15,3 +15,6 @@ class ResultSet(BaseModel):
     # reason and a machine code ("area_too_large", "country_route_unavailable", or None).
     message: str | None = None
     error_code: str | None = None
+    # Adjustments and unmet preferences the engine reports with the plan (code + message + its figures):
+    # stop_band_margin, fleet_min_above_stops, fleet_min_above_volume, volume_constraint_unmet…
+    constraint_warnings: list | None = None
